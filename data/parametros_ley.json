@@ -1,0 +1,219 @@
+{
+  "version": "2026.3",
+  "moneda": "USD",
+  "ultima_revision": "2026-11-13",
+  "advertencia": "Los valores marcados con 'verificar' deben confirmarse contra la fuente oficial vigente antes de usarse en una propuesta economica real.",
+  "salario": {
+    "sbu": 482.0,
+    "sbu_vigencia": "2026",
+    "sbu_verificar": false,
+    "fuente": "Ministerio del Trabajo - Acuerdo Ministerial MDT-2025-195 (15-dic-2025; R.O. Suplemento 187, 18-dic-2025)",
+    "fuente_url": "https://www.trabajo.gob.ec/",
+    "verificado_en": "2026-11-13",
+    "horas_jornada_diaria": 8,
+    "dias_mes": 30,
+    "horas_mes": 240
+  },
+  "iess": {
+    "aporte_personal_pct": 9.45,
+    "aporte_patronal_pct": 11.15,
+    "fondos_reserva_pct": 8.33,
+    "iece_secap_pct": 1.0,
+    "fuente": "IESS - Resolucion C.D. 501, texto sustituido por la C.D. 515 (sector privado bajo relacion de dependencia)",
+    "fuente_url": "https://www.iess.gob.ec/",
+    "verificado_en": "2026-11-13"
+  },
+  "beneficios_sociales": {
+    "decimo_tercero": "1/12 del total de ingresos anuales, acumulado mensual",
+    "decimo_cuarto": "1 SBU anual (1/12 mensual) para jornada completa",
+    "vacaciones_dias": 15,
+    "utilidades_pct": 15.0
+  },
+  "impuestos": {
+    "iva_pct": 15.0,
+    "iva_vigencia": "vigente en 2026 desde 2024-04-01",
+    "fuente": "SRI - Circular NAC-DGECCGC25-00000006 (26-dic-2025) y NAC-DGECCGC26-00000003",
+    "fuente_url": "https://www.sri.gob.ec/",
+    "verificado_en": "2026-11-13"
+  },
+  "costo_empleador": {
+    "descripcion": "Porcentajes que el empleador paga sobre la remuneracion, ademas del sueldo. El factor se calcula sumando los componentes; no se fija a mano.",
+    "componentes": {
+      "aporte_patronal": 11.15,
+      "iece_secap": 1.0,
+      "fondos_reserva": 8.33,
+      "decimo_tercero": 8.33,
+      "decimo_cuarto": 8.33,
+      "vacaciones": 4.17
+    },
+    "nota": "El decimo cuarto se estima como 1 SBU/12 sobre un sueldo de referencia igual al SBU; para sueldos mayores su peso relativo baja. Ajuste el componente si su caso difiere.",
+    "verificado_en": "2026-11-13"
+  },
+  "factor_costo_mano_obra": {
+    "descripcion": "Compatibilidad: factor = 1 + suma(componentes de costo_empleador)/100",
+    "formula": "1 + (aporte_patronal + iece_secap + fondos_reserva + decimo_tercero + decimo_cuarto + vacaciones) / 100",
+    "valor": 1.4131
+  },
+  "gastos_administrativos": {
+    "pct": 5.0,
+    "descripcion": "Gastos generales de administracion (oficina, contabilidad, supervision) sobre los costos directos de la inversion privada. Es un supuesto editable, no una tasa legal.",
+    "aplica_a": "solo inversion privada",
+    "verificar": true
+  },
+  "tasas_cantonales": {
+    "Ambato": {
+      "entidad": "GAD Municipalidad de Ambato",
+      "certificado_uso_suelo": 2.0,
+      "patente_minima": 10.0,
+      "bomberos_locales_comerciales_min": 15.0,
+      "bomberos_locales_comerciales_max": 80.0,
+      "tasa_construccion_por_m2": 3.5,
+      "fuente_url": "https://www.ambato.gob.ec/",
+      "verificar": true,
+      "fuente_tipo": "portal_institucional",
+      "verificado": false,
+      "verificado_en": "2026-11-13",
+      "fuente_normativa": "Ordenanza municipal de tasas y tarifas vigente; el tarifario se publica en el portal del GAD y debe confirmarse antes de presupuestar.",
+      "notas": "Valores de referencia del canton. No se trasladan tarifas entre ciudades: cada GAD fija su propio tarifario.",
+      "tarifas": {
+        "uso_suelo": {
+          "concepto": "Certificado de uso de suelo",
+          "valor": 2.0,
+          "unidad": "tramite",
+          "nota": "Tarifa minima de referencia del GAD."
+        },
+        "patente_municipal": {
+          "concepto": "Patente municipal",
+          "valor": 10.0,
+          "unidad": "tramite",
+          "nota": "Tarifa minima; el valor final depende del activo y ventas declaradas."
+        },
+        "bomberos": {
+          "concepto": "Inspeccion de bomberos",
+          "valor": 15.0,
+          "unidad": "tramite",
+          "nota": "Rango referencial 15.0-80.0 USD segun area y riesgo.",
+          "rango": [
+            15.0,
+            80.0
+          ]
+        },
+        "permiso_construccion": {
+          "concepto": "Tasa de construccion",
+          "valor": 3.5,
+          "unidad": "m2",
+          "nota": "Se aplica por metro cuadrado de construccion declarado."
+        }
+      }
+    },
+    "Quito": {
+      "entidad": "GAD Municipal del Distrito Metropolitano de Quito",
+      "certificado_uso_suelo": 2.0,
+      "patente_minima": 10.0,
+      "bomberos_locales_comerciales_min": 18.0,
+      "bomberos_locales_comerciales_max": 90.0,
+      "tasa_construccion_por_m2": 4.0,
+      "fuente_url": "https://www.quito.gob.ec/",
+      "verificar": true,
+      "fuente_tipo": "portal_institucional",
+      "verificado": false,
+      "verificado_en": "2026-11-13",
+      "fuente_normativa": "Ordenanza municipal de tasas y tarifas vigente; el tarifario se publica en el portal del GAD y debe confirmarse antes de presupuestar.",
+      "notas": "Valores de referencia del canton. No se trasladan tarifas entre ciudades: cada GAD fija su propio tarifario.",
+      "tarifas": {
+        "uso_suelo": {
+          "concepto": "Certificado de uso de suelo",
+          "valor": 2.0,
+          "unidad": "tramite",
+          "nota": "Tarifa minima de referencia del GAD."
+        },
+        "patente_municipal": {
+          "concepto": "Patente municipal",
+          "valor": 10.0,
+          "unidad": "tramite",
+          "nota": "Tarifa minima; el valor final depende del activo y ventas declaradas."
+        },
+        "bomberos": {
+          "concepto": "Inspeccion de bomberos",
+          "valor": 18.0,
+          "unidad": "tramite",
+          "nota": "Rango referencial 18.0-90.0 USD segun area y riesgo.",
+          "rango": [
+            18.0,
+            90.0
+          ]
+        },
+        "permiso_construccion": {
+          "concepto": "Tasa de construccion",
+          "valor": 4.0,
+          "unidad": "m2",
+          "nota": "Se aplica por metro cuadrado de construccion declarado."
+        }
+      }
+    },
+    "Guayaquil": {
+      "entidad": "Muy Ilustre Municipalidad de Guayaquil",
+      "certificado_uso_suelo": 2.0,
+      "patente_minima": 10.0,
+      "bomberos_locales_comerciales_min": 20.0,
+      "bomberos_locales_comerciales_max": 100.0,
+      "tasa_construccion_por_m2": 4.5,
+      "fuente_url": "https://www.guayaquil.gob.ec/",
+      "verificar": true,
+      "fuente_tipo": "portal_institucional",
+      "verificado": false,
+      "verificado_en": "2026-11-13",
+      "fuente_normativa": "Ordenanza municipal de tasas y tarifas vigente; el tarifario se publica en el portal del GAD y debe confirmarse antes de presupuestar.",
+      "notas": "Valores de referencia del canton. No se trasladan tarifas entre ciudades: cada GAD fija su propio tarifario.",
+      "tarifas": {
+        "uso_suelo": {
+          "concepto": "Certificado de uso de suelo",
+          "valor": 2.0,
+          "unidad": "tramite",
+          "nota": "Tarifa minima de referencia del GAD."
+        },
+        "patente_municipal": {
+          "concepto": "Patente municipal",
+          "valor": 10.0,
+          "unidad": "tramite",
+          "nota": "Tarifa minima; el valor final depende del activo y ventas declaradas."
+        },
+        "bomberos": {
+          "concepto": "Inspeccion de bomberos",
+          "valor": 20.0,
+          "unidad": "tramite",
+          "nota": "Rango referencial 20.0-100.0 USD segun area y riesgo.",
+          "rango": [
+            20.0,
+            100.0
+          ]
+        },
+        "permiso_construccion": {
+          "concepto": "Tasa de construccion",
+          "valor": 4.5,
+          "unidad": "m2",
+          "nota": "Se aplica por metro cuadrado de construccion declarado."
+        }
+      }
+    }
+  },
+  "tamanos_empresa": {
+    "micro": {
+      "trabajadores_max": 9,
+      "ventas_anuales_max": 300000
+    },
+    "pequena": {
+      "trabajadores_max": 49,
+      "ventas_anuales_max": 1000000
+    },
+    "mediana": {
+      "trabajadores_max": 199,
+      "ventas_anuales_max": 5000000
+    },
+    "grande": {
+      "trabajadores_max": 9999,
+      "ventas_anuales_max": null
+    }
+  },
+  "tasas_cantonales_nota": "Solo los tramites con entrada en 'tarifas' usan el valor del canton. El resto conserva el costo de referencia del catalogo y se marca como estimacion."
+}

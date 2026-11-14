@@ -1,0 +1,1063 @@
+{
+  "version": "2026.3",
+  "moneda": "USD",
+  "ultima_revision": "2026-11-13",
+  "descripcion": "Catalogo normativo verificado de tramites publicos del Ecuador. Cada registro incluye predecesoras legales, estimacion PERT en dias laborables, costo de referencia y la fuente oficial que lo respalda.",
+  "advertencia": "Las tasas municipales y sectoriales cambian por ordenanza y resolucion. El campo 'verificar' marca los valores que deben confirmarse en la fuente antes de presentar un presupuesto definitivo. El sistema nunca inventa un tramite: si no esta en este catalogo, el Copiloto lo declara como supuesto.",
+  "niveles": [
+    "nacional",
+    "cantonal"
+  ],
+  "categorias": [
+    "Tributario",
+    "Societario",
+    "Municipal",
+    "Bomberos",
+    "Laboral",
+    "Sanitario",
+    "Ambiental",
+    "Propiedad intelectual",
+    "Servicios basicos",
+    "Construccion"
+  ],
+  "tramites": [
+    {
+      "id": "firma_electronica",
+      "nombre": "Obtencion de firma electronica",
+      "entidad": "BCE / Security Data / Uanataca",
+      "categoria": "Societario",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Certificado digital .p12 requerido para constitucion de companias, facturacion electronica y tramites en linea.",
+      "predecesoras": [],
+      "optimista": 1,
+      "probable": 1,
+      "pesimista": 3,
+      "costo": 25.0,
+      "costo_nota": "Rango real 22-30 USD segun entidad certificadora y vigencia (1-2 anos).",
+      "requisitos": [
+        "Cedula y papeleta de votacion",
+        "Correo electronico personal",
+        "Pago de la tasa de la entidad certificadora"
+      ],
+      "aplica_a": [
+        "todos",
+        "persona_natural",
+        "persona_juridica"
+      ],
+      "obligatorio": true,
+      "verificar": true,
+      "fuente_normativa": "Ley de Comercio Electronico, Firmas Electronicas y Mensajes de Datos",
+      "fuente_url": "https://www.firmaselectronica.gob.ec/",
+      "valor_tipo": "mercado",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional. El monto es una referencia: confirmar el tarifario o la ordenanza vigente antes de presentar el presupuesto."
+    },
+    {
+      "id": "reserva_denominacion",
+      "nombre": "Reserva de denominacion de la compania",
+      "entidad": "Superintendencia de Companias (Supercias)",
+      "categoria": "Societario",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Verificacion y reserva del nombre comercial de la sociedad en el sistema en linea de Supercias.",
+      "predecesoras": [
+        "firma_electronica"
+      ],
+      "optimista": 1,
+      "probable": 1,
+      "pesimista": 2,
+      "costo": 0.0,
+      "costo_nota": "Tramite electronico sin costo.",
+      "requisitos": [
+        "Firma electronica del solicitante",
+        "Tres alternativas de nombre"
+      ],
+      "aplica_a": [
+        "persona_juridica"
+      ],
+      "obligatorio": false,
+      "verificar": false,
+      "fuente_normativa": "Ley de Compañias; Resolucion Supercias",
+      "fuente_url": "https://www.supercias.gob.ec/",
+      "valor_tipo": "oficial",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional; el trámite no tiene costo directo de tasa o el valor es de mercado."
+    },
+    {
+      "id": "constitucion_sociedad",
+      "nombre": "Constitucion electronica de la sociedad (S.A.S.)",
+      "entidad": "Superintendencia de Companias (Supercias)",
+      "categoria": "Societario",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Constitucion de Sociedad por Acciones Simplificada mediante escritura electronica y registro en el sistema de Supercias.",
+      "predecesoras": [
+        "firma_electronica",
+        "reserva_denominacion"
+      ],
+      "optimista": 2,
+      "probable": 4,
+      "pesimista": 8,
+      "costo": 0.0,
+      "costo_nota": "Tramite electronico sin costo. Si se requiere notaria o abogado, sumar honorarios privados (no regulados).",
+      "requisitos": [
+        "Firmas electronicas de los accionistas",
+        "Estatutos sociales",
+        "Reserva de denominacion vigente"
+      ],
+      "aplica_a": [
+        "persona_juridica"
+      ],
+      "obligatorio": false,
+      "verificar": false,
+      "fuente_normativa": "Ley de Emprendimiento e Innovacion (S.A.S.)",
+      "fuente_url": "https://www.supercias.gob.ec/",
+      "valor_tipo": "oficial",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional; el trámite no tiene costo directo de tasa o el valor es de mercado."
+    },
+    {
+      "id": "ruc",
+      "nombre": "Inscripcion y obtencion del RUC",
+      "entidad": "Servicio de Rentas Internas (SRI)",
+      "categoria": "Tributario",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Registro Unico de Contribuyentes, persona natural o juridica. Habilita la facturacion y todos los tramites posteriores.",
+      "predecesoras": [
+        "firma_electronica"
+      ],
+      "optimista": 1,
+      "probable": 2,
+      "pesimista": 5,
+      "costo": 0.0,
+      "costo_nota": "Gratuito. Requiere comprobante de domicilio (contrato de arriendo o escritura).",
+      "requisitos": [
+        "Cedula y firma electronica",
+        "Contrato de arriendo o escritura del predio",
+        "Planilla de servicio basico del domicilio"
+      ],
+      "aplica_a": [
+        "todos",
+        "persona_natural",
+        "persona_juridica"
+      ],
+      "obligatorio": true,
+      "verificar": false,
+      "fuente_normativa": "Codigo Tributario; Ley de Regimen Tributario Interno",
+      "fuente_url": "https://www.sri.gob.ec/",
+      "valor_tipo": "oficial",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional; el trámite no tiene costo directo de tasa o el valor es de mercado."
+    },
+    {
+      "id": "regimen_rimpe",
+      "nombre": "Registro en regimen RIMPE (emprendedor o negocio popular)",
+      "entidad": "Servicio de Rentas Internas (SRI)",
+      "categoria": "Tributario",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Acogimiento al Regimen Impositivo para Microempresas y Negocios Populares cuando aplica por nivel de ingresos.",
+      "predecesoras": [
+        "ruc"
+      ],
+      "optimista": 1,
+      "probable": 1,
+      "pesimista": 2,
+      "costo": 0.0,
+      "costo_nota": "Gratuito.",
+      "requisitos": [
+        "RUC activo",
+        "Ingresos anuales dentro del limite del regimen"
+      ],
+      "aplica_a": [
+        "microempresa"
+      ],
+      "obligatorio": false,
+      "verificar": true,
+      "fuente_normativa": "Ley Organica para el Desarrollo Economico y Sostenibilidad Fiscal (RIMPE)",
+      "fuente_url": "https://www.sri.gob.ec/",
+      "valor_tipo": "oficial",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional; el trámite no tiene costo directo de tasa o el valor es de mercado."
+    },
+    {
+      "id": "autorizacion_facturacion",
+      "nombre": "Autorizacion de comprobantes y facturacion electronica",
+      "entidad": "Servicio de Rentas Internas (SRI)",
+      "categoria": "Tributario",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Habilitacion del esquema de emision de comprobantes electronicos y firma del certificado de produccion.",
+      "predecesoras": [
+        "ruc",
+        "firma_electronica"
+      ],
+      "optimista": 1,
+      "probable": 2,
+      "pesimista": 4,
+      "costo": 0.0,
+      "costo_nota": "Gratuito. El proveedor de facturacion electronica puede cobrar por el servicio.",
+      "requisitos": [
+        "RUC activo",
+        "Firma electronica vigente",
+        "Certificado de firma cargado en el SRI"
+      ],
+      "aplica_a": [
+        "todos"
+      ],
+      "obligatorio": true,
+      "verificar": false,
+      "fuente_normativa": "Resolucion NAC-DGERCGC del SRI (comprobantes electronicos)",
+      "fuente_url": "https://www.sri.gob.ec/",
+      "valor_tipo": "oficial",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional; el trámite no tiene costo directo de tasa o el valor es de mercado."
+    },
+    {
+      "id": "uso_suelo",
+      "nombre": "Certificado de uso de suelo",
+      "entidad": "GAD Municipal",
+      "categoria": "Municipal",
+      "nivel": "cantonal",
+      "canton": null,
+      "descripcion": "Confirma que el predio admite el giro de negocio o la edificacion proyectada. Es la primera predecesora municipal de casi toda la cadena.",
+      "predecesoras": [
+        "ruc"
+      ],
+      "optimista": 1,
+      "probable": 3,
+      "pesimista": 8,
+      "costo": 2.0,
+      "costo_nota": "Especie valorada de 2 USD mas carta de pago del impuesto predial al dia.",
+      "requisitos": [
+        "Escritura o contrato de arriendo del predio",
+        "Carta de pago del impuesto predial",
+        "Cedula del propietario"
+      ],
+      "aplica_a": [
+        "todos",
+        "local_comercial",
+        "obra_civil"
+      ],
+      "obligatorio": true,
+      "verificar": true,
+      "fuente_normativa": "Ordenanza de Uso y Ocupacion del Suelo del canton correspondiente",
+      "fuente_url": "https://www.ambato.gob.ec/",
+      "valor_tipo": "estimacion",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional. El monto es una referencia: confirmar el tarifario o la ordenanza vigente antes de presentar el presupuesto."
+    },
+    {
+      "id": "aprobacion_planos",
+      "nombre": "Aprobacion de planos arquitectonicos y estructurales",
+      "entidad": "GAD Municipal - Direccion de Planificacion",
+      "categoria": "Construccion",
+      "nivel": "cantonal",
+      "canton": null,
+      "descripcion": "Revision y aprobacion de planos conforme a la Norma Ecuatoriana de la Construccion (NEC).",
+      "predecesoras": [
+        "uso_suelo"
+      ],
+      "optimista": 5,
+      "probable": 12,
+      "pesimista": 25,
+      "costo": 120.0,
+      "costo_base": 120.0,
+      "costo_por_m2": 0.5,
+      "costo_nota": "Tasa municipal calculada sobre los metros cuadrados de construccion. El valor final depende de la ordenanza vigente.",
+      "requisitos": [
+        "Planos firmados por arquitecto e ingeniero civil",
+        "Memoria de calculo estructural (NEC)",
+        "Certificado de uso de suelo",
+        "Copia del titulo de propiedad"
+      ],
+      "aplica_a": [
+        "obra_civil"
+      ],
+      "obligatorio": true,
+      "verificar": true,
+      "fuente_normativa": "Norma Ecuatoriana de la Construccion (NEC); Ordenanza de Edificaciones",
+      "fuente_url": "https://www.ambato.gob.ec/",
+      "valor_tipo": "estimacion",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional. El monto es una referencia: confirmar el tarifario o la ordenanza vigente antes de presentar el presupuesto."
+    },
+    {
+      "id": "linea_fabrica",
+      "nombre": "Aprobacion de linea de fabrica",
+      "entidad": "GAD Municipal - Direccion de Planificacion",
+      "categoria": "Construccion",
+      "nivel": "cantonal",
+      "canton": null,
+      "descripcion": "Calificacion del establecimiento industrial como linea de fabrica, exigida para plantas, talleres y galpones productivos.",
+      "predecesoras": [
+        "aprobacion_planos"
+      ],
+      "optimista": 5,
+      "probable": 10,
+      "pesimista": 20,
+      "costo": 80.0,
+      "costo_base": 80.0,
+      "costo_por_m2": 0.4,
+      "costo_nota": "Tasa por metro cuadrado segun ordenanza; el valor de referencia es solo un estimado.",
+      "requisitos": [
+        "Planos aprobados",
+        "Descripcion del proceso productivo",
+        "Certificado de uso de suelo industrial o mixto"
+      ],
+      "aplica_a": [
+        "industria",
+        "obra_civil"
+      ],
+      "obligatorio": true,
+      "verificar": true,
+      "fuente_normativa": "Ordenanza de Edificaciones y Construccion del canton correspondiente",
+      "fuente_url": "https://www.ambato.gob.ec/",
+      "valor_tipo": "estimacion",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional. El monto es una referencia: confirmar el tarifario o la ordenanza vigente antes de presentar el presupuesto."
+    },
+    {
+      "id": "permiso_construccion",
+      "nombre": "Permiso de construccion",
+      "entidad": "GAD Municipal",
+      "categoria": "Construccion",
+      "nivel": "cantonal",
+      "canton": null,
+      "descripcion": "Autorizacion municipal para ejecutar la obra fisica. Sin este permiso la construccion es clausurable.",
+      "predecesoras": [
+        "aprobacion_planos",
+        "linea_fabrica"
+      ],
+      "optimista": 2,
+      "probable": 5,
+      "pesimista": 12,
+      "costo": 60.0,
+      "costo_base": 60.0,
+      "costo_por_m2": 0.3,
+      "costo_nota": "Tasa de construccion por metro cuadrado segun ordenanza vigente.",
+      "requisitos": [
+        "Planos aprobados",
+        "Linea de fabrica (si aplica)",
+        "Pago de tasas municipales",
+        "Responsable tecnico registrado"
+      ],
+      "aplica_a": [
+        "obra_civil"
+      ],
+      "obligatorio": true,
+      "verificar": true,
+      "fuente_normativa": "Ordenanza de Edificaciones del canton correspondiente",
+      "fuente_url": "https://www.ambato.gob.ec/",
+      "valor_tipo": "estimacion",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional. El monto es una referencia: confirmar el tarifario o la ordenanza vigente antes de presentar el presupuesto."
+    },
+    {
+      "id": "bomberos",
+      "nombre": "Permiso de funcionamiento del Cuerpo de Bomberos",
+      "entidad": "Cuerpo de Bomberos",
+      "categoria": "Bomberos",
+      "nivel": "cantonal",
+      "canton": null,
+      "descripcion": "Inspeccion fisica obligatoria de extintores, luces de emergencia, senaletica y rutas de evacuacion.",
+      "predecesoras": [
+        "uso_suelo"
+      ],
+      "optimista": 1,
+      "probable": 3,
+      "pesimista": 10,
+      "costo": 25.0,
+      "costo_nota": "Tasa segun categoria de riesgo y tamano del local: referencia 15-80 USD para locales comerciales estandar.",
+      "requisitos": [
+        "Extintores vigentes",
+        "Luces de emergencia",
+        "Senaletica de evacuacion",
+        "Plan de emergencia"
+      ],
+      "aplica_a": [
+        "todos",
+        "local_comercial",
+        "obra_civil",
+        "evento"
+      ],
+      "obligatorio": true,
+      "verificar": true,
+      "fuente_normativa": "Ley de Defensa contra Incendios; Ordenanza del Cuerpo de Bomberos",
+      "fuente_url": "https://www.bomberoambato.gob.ec/",
+      "valor_tipo": "estimacion",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional. El monto es una referencia: confirmar el tarifario o la ordenanza vigente antes de presentar el presupuesto."
+    },
+    {
+      "id": "patente_municipal",
+      "nombre": "Patente municipal",
+      "entidad": "GAD Municipal - Direccion Financiera",
+      "categoria": "Municipal",
+      "nivel": "cantonal",
+      "canton": null,
+      "descripcion": "Tributo anual sobre el ejercicio de actividad economica en el canton. Requiere RUC previo.",
+      "predecesoras": [
+        "ruc",
+        "uso_suelo"
+      ],
+      "optimista": 1,
+      "probable": 2,
+      "pesimista": 5,
+      "costo": 10.0,
+      "costo_nota": "Tarifa minima desde 10 USD; el valor real depende del capital de operacion declarado.",
+      "requisitos": [
+        "RUC activo",
+        "Certificado de uso de suelo",
+        "Formulario de declaracion de capital"
+      ],
+      "aplica_a": [
+        "todos",
+        "local_comercial"
+      ],
+      "obligatorio": true,
+      "verificar": true,
+      "fuente_normativa": "Ley Organica de Regimen Municipal; Ordenanza de Patentes",
+      "fuente_url": "https://www.ambato.gob.ec/",
+      "valor_tipo": "estimacion",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional. El monto es una referencia: confirmar el tarifario o la ordenanza vigente antes de presentar el presupuesto."
+    },
+    {
+      "id": "habilitacion_municipal",
+      "nombre": "Certificado Unico de Habilitacion municipal",
+      "entidad": "GAD Municipal",
+      "categoria": "Municipal",
+      "nivel": "cantonal",
+      "canton": null,
+      "descripcion": "Tramite final que consolida uso de suelo, RUC, patente, bomberos y permisos sectoriales. Es la meta legal del proyecto.",
+      "predecesoras": [
+        "uso_suelo",
+        "bomberos",
+        "patente_municipal",
+        "ruc"
+      ],
+      "optimista": 1,
+      "probable": 3,
+      "pesimista": 7,
+      "costo": 0.0,
+      "costo_nota": "Sin costo adicional cuando los requisitos previos ya estan pagados.",
+      "requisitos": [
+        "Certificado de uso de suelo",
+        "RUC",
+        "Patente municipal",
+        "Permiso de bomberos",
+        "Permiso sectorial (ARCSA si aplica)"
+      ],
+      "aplica_a": [
+        "todos",
+        "local_comercial"
+      ],
+      "obligatorio": true,
+      "verificar": true,
+      "fuente_normativa": "Ordenanza de Habilitacion de Establecimientos",
+      "fuente_url": "https://www.ambato.gob.ec/",
+      "valor_tipo": "estimacion",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional; el trámite no tiene costo directo de tasa o el valor es de mercado."
+    },
+    {
+      "id": "permiso_evento",
+      "nombre": "Permiso municipal para evento publico",
+      "entidad": "GAD Municipal / Intendencia de Policia",
+      "categoria": "Municipal",
+      "nivel": "cantonal",
+      "canton": null,
+      "descripcion": "Autorizacion para eventos masivos, ferias o activaciones comerciales.",
+      "predecesoras": [
+        "bomberos"
+      ],
+      "optimista": 3,
+      "probable": 7,
+      "pesimista": 15,
+      "costo": 50.0,
+      "costo_nota": "Varia segun aforo y categoria del evento.",
+      "requisitos": [
+        "Plan de contingencia",
+        "Permiso de bomberos",
+        "Contrato del local o espacio publico"
+      ],
+      "aplica_a": [
+        "evento"
+      ],
+      "obligatorio": false,
+      "verificar": true,
+      "fuente_normativa": "Ordenanza de Espectaculos Publicos",
+      "fuente_url": "https://www.ambato.gob.ec/",
+      "valor_tipo": "estimacion",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional. El monto es una referencia: confirmar el tarifario o la ordenanza vigente antes de presentar el presupuesto."
+    },
+    {
+      "id": "registro_patronal",
+      "nombre": "Registro patronal en el IESS",
+      "entidad": "Instituto Ecuatoriano de Seguridad Social (IESS)",
+      "categoria": "Laboral",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Alta del empleador como patrono. Obligatorio antes de contratar personal.",
+      "predecesoras": [
+        "ruc"
+      ],
+      "optimista": 1,
+      "probable": 2,
+      "pesimista": 5,
+      "costo": 0.0,
+      "costo_nota": "Gratuito.",
+      "requisitos": [
+        "RUC activo",
+        "Cedula del representante legal",
+        "Direccion del establecimiento"
+      ],
+      "aplica_a": [
+        "empleador"
+      ],
+      "obligatorio": true,
+      "verificar": false,
+      "fuente_normativa": "Ley de Seguridad Social; Reglamento de Registro Patronal",
+      "fuente_url": "https://www.iess.gob.ec/",
+      "valor_tipo": "oficial",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional; el trámite no tiene costo directo de tasa o el valor es de mercado."
+    },
+    {
+      "id": "aviso_entrada",
+      "nombre": "Aviso de entrada del trabajador al IESS",
+      "entidad": "Instituto Ecuatoriano de Seguridad Social (IESS)",
+      "categoria": "Laboral",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Notificacion de ingreso de cada trabajador. Plazo legal maximo de 15 dias desde el inicio de labores.",
+      "predecesoras": [
+        "registro_patronal"
+      ],
+      "optimista": 1,
+      "probable": 1,
+      "pesimista": 2,
+      "costo": 0.0,
+      "costo_nota": "Gratuito; el empleador asume aportes patronales del 11.15%.",
+      "requisitos": [
+        "Registro patronal activo",
+        "Contrato de trabajo",
+        "Cedula del trabajador"
+      ],
+      "aplica_a": [
+        "empleador"
+      ],
+      "obligatorio": true,
+      "verificar": false,
+      "fuente_normativa": "Ley de Seguridad Social, Art. 73",
+      "fuente_url": "https://www.iess.gob.ec/",
+      "valor_tipo": "oficial",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional; el trámite no tiene costo directo de tasa o el valor es de mercado."
+    },
+    {
+      "id": "contrato_sut",
+      "nombre": "Registro del contrato de trabajo en el SUT",
+      "entidad": "Ministerio del Trabajo",
+      "categoria": "Laboral",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Registro obligatorio del contrato en el Sistema Unico de Trabajo.",
+      "predecesoras": [
+        "registro_patronal"
+      ],
+      "optimista": 1,
+      "probable": 2,
+      "pesimista": 4,
+      "costo": 0.0,
+      "costo_nota": "Gratuito.",
+      "requisitos": [
+        "Registro patronal",
+        "Contrato firmado",
+        "Firma electronica del empleador"
+      ],
+      "aplica_a": [
+        "empleador"
+      ],
+      "obligatorio": true,
+      "verificar": false,
+      "fuente_normativa": "Codigo del Trabajo; Acuerdo Ministerial del SUT",
+      "fuente_url": "https://www.trabajo.gob.ec/",
+      "valor_tipo": "oficial",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional; el trámite no tiene costo directo de tasa o el valor es de mercado."
+    },
+    {
+      "id": "reglamento_higiene",
+      "nombre": "Aprobacion del Reglamento de Higiene y Seguridad",
+      "entidad": "Ministerio del Trabajo",
+      "categoria": "Laboral",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Obligatorio para empleadores con mas de 10 trabajadores.",
+      "predecesoras": [
+        "registro_patronal"
+      ],
+      "optimista": 5,
+      "probable": 10,
+      "pesimista": 20,
+      "costo": 0.0,
+      "costo_nota": "Sin tasa estatal; puede requerir asesoria externa.",
+      "requisitos": [
+        "Registro patronal",
+        "Diagnostico de riesgos laborales"
+      ],
+      "aplica_a": [
+        "empleador_grande"
+      ],
+      "obligatorio": true,
+      "verificar": false,
+      "fuente_normativa": "Reglamento de Seguridad y Salud en el Trabajo (Decreto Ejecutivo 255)",
+      "fuente_url": "https://www.trabajo.gob.ec/",
+      "valor_tipo": "oficial",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional; el trámite no tiene costo directo de tasa o el valor es de mercado."
+    },
+    {
+      "id": "permiso_arcsa",
+      "nombre": "Permiso de funcionamiento ARCSA",
+      "entidad": "Agencia Nacional de Regulacion, Control y Vigilancia Sanitaria (ARCSA)",
+      "categoria": "Sanitario",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Habilitacion sanitaria del establecimiento que manipula alimentos, medicamentos o cosmeticos.",
+      "predecesoras": [
+        "ruc",
+        "patente_municipal",
+        "bomberos"
+      ],
+      "optimista": 3,
+      "probable": 7,
+      "pesimista": 15,
+      "costo": 0.0,
+      "costos_por_tamano": {
+        "micro": 0.0,
+        "pequena": 60.0,
+        "mediana": 120.0,
+        "grande": 200.0
+      },
+      "costo_nota": "Exento para microempresas y artesanos; tasas crecientes para pequena, mediana y grande empresa.",
+      "requisitos": [
+        "RUC",
+        "Patente municipal",
+        "Permiso de bomberos",
+        "Plan de Buenas Practicas de Manufactura"
+      ],
+      "aplica_a": [
+        "alimentos",
+        "salud",
+        "cosmeticos"
+      ],
+      "obligatorio": true,
+      "verificar": true,
+      "fuente_normativa": "Resolucion ARCSA-DE-2022-016-AKRG y reformas",
+      "fuente_url": "https://www.controlsanitario.gob.ec/",
+      "valor_tipo": "oficial",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional; el trámite no tiene costo directo de tasa o el valor es de mercado."
+    },
+    {
+      "id": "notificacion_sanitaria",
+      "nombre": "Notificacion sanitaria de producto procesado",
+      "entidad": "ARCSA",
+      "categoria": "Sanitario",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Registro obligatorio de alimentos procesados y empaquetados antes de su comercializacion.",
+      "predecesoras": [
+        "permiso_arcsa"
+      ],
+      "optimista": 5,
+      "probable": 15,
+      "pesimista": 30,
+      "costo": 104.0,
+      "costos_por_tamano": {
+        "micro": 104.0,
+        "pequena": 260.0,
+        "mediana": 650.0,
+        "grande": 1300.0
+      },
+      "costo_nota": "Tasa real desde ~104 USD para microempresa/artesano hasta mas de 1,300 USD segun categoria.",
+      "requisitos": [
+        "Permiso de funcionamiento ARCSA",
+        "Diseno de etiqueta conforme INEN",
+        "Analisis de laboratorio acreditado"
+      ],
+      "aplica_a": [
+        "alimentos",
+        "cosmeticos"
+      ],
+      "obligatorio": true,
+      "verificar": true,
+      "fuente_normativa": "Resolucion ARCSA-DE-2022-016-AKRG",
+      "fuente_url": "https://www.controlsanitario.gob.ec/",
+      "valor_tipo": "estimacion",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional. El monto es una referencia: confirmar el tarifario o la ordenanza vigente antes de presentar el presupuesto."
+    },
+    {
+      "id": "registro_sanitario_medicamentos",
+      "nombre": "Registro sanitario de medicamentos",
+      "entidad": "ARCSA",
+      "categoria": "Sanitario",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Registro necesario para fabricar, importar o comercializar medicamentos y dispositivos medicos.",
+      "predecesoras": [
+        "permiso_arcsa"
+      ],
+      "optimista": 20,
+      "probable": 45,
+      "pesimista": 90,
+      "costo": 700.0,
+      "costo_nota": "Tasa variable; el valor de referencia puede quedarse corto frente al costo de validacion tecnica.",
+      "requisitos": [
+        "Permiso de funcionamiento",
+        "Expediente tecnico",
+        "Estudios de estabilidad",
+        "Certificado de BPM"
+      ],
+      "aplica_a": [
+        "salud"
+      ],
+      "obligatorio": false,
+      "verificar": true,
+      "fuente_normativa": "Ley Organica de Salud; Resoluciones ARCSA",
+      "fuente_url": "https://www.controlsanitario.gob.ec/",
+      "valor_tipo": "estimacion",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional. El monto es una referencia: confirmar el tarifario o la ordenanza vigente antes de presentar el presupuesto."
+    },
+    {
+      "id": "certificado_ambiental",
+      "nombre": "Certificado ambiental (SUIA - bajo impacto)",
+      "entidad": "Ministerio del Ambiente, Agua y Transicion Ecologica (MAATE)",
+      "categoria": "Ambiental",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Certificado automatico para actividades de bajo impacto ambiental.",
+      "predecesoras": [
+        "ruc"
+      ],
+      "optimista": 1,
+      "probable": 2,
+      "pesimista": 5,
+      "costo": 0.0,
+      "costo_nota": "Gratuito y de emision automatica en el SUIA.",
+      "requisitos": [
+        "RUC",
+        "Ficha ambiental del proyecto",
+        "Coordenadas del predio"
+      ],
+      "aplica_a": [
+        "ambiente_bajo",
+        "obra_civil",
+        "local_comercial"
+      ],
+      "obligatorio": true,
+      "verificar": false,
+      "fuente_normativa": "Codigo Organico del Ambiente; Reglamento Ambiental",
+      "fuente_url": "https://www.ambiente.gob.ec/",
+      "valor_tipo": "oficial",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional; el trámite no tiene costo directo de tasa o el valor es de mercado."
+    },
+    {
+      "id": "registro_ambiental",
+      "nombre": "Registro ambiental (SUIA - impacto medio)",
+      "entidad": "MAATE",
+      "categoria": "Ambiental",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Registro para actividades de impacto ambiental medio, con plan de manejo ambiental.",
+      "predecesoras": [
+        "certificado_ambiental"
+      ],
+      "optimista": 10,
+      "probable": 25,
+      "pesimista": 50,
+      "costo": 180.0,
+      "costo_nota": "Tasa de referencia ~180 USD; incluye revision del plan de manejo.",
+      "requisitos": [
+        "Certificado ambiental",
+        "Plan de Manejo Ambiental",
+        "Estudio de impacto no requerido"
+      ],
+      "aplica_a": [
+        "ambiente_medio",
+        "industria"
+      ],
+      "obligatorio": true,
+      "verificar": true,
+      "fuente_normativa": "Codigo Organico del Ambiente; Reglamento al COA",
+      "fuente_url": "https://www.ambiente.gob.ec/",
+      "valor_tipo": "estimacion",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional. El monto es una referencia: confirmar el tarifario o la ordenanza vigente antes de presentar el presupuesto."
+    },
+    {
+      "id": "licencia_ambiental",
+      "nombre": "Licencia ambiental (SUIA - alto impacto)",
+      "entidad": "MAATE",
+      "categoria": "Ambiental",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Licencia para actividades de alto impacto que requieren estudio de impacto ambiental completo y audiencia publica.",
+      "predecesoras": [
+        "registro_ambiental"
+      ],
+      "optimista": 45,
+      "probable": 90,
+      "pesimista": 180,
+      "costo": 700.0,
+      "costo_nota": "Tasa estatal mas costo del estudio de impacto ambiental contratado a consultora acreditada.",
+      "requisitos": [
+        "Estudio de Impacto Ambiental",
+        "Consulta publica",
+        "Plan de manejo y monitoreo"
+      ],
+      "aplica_a": [
+        "ambiente_alto"
+      ],
+      "obligatorio": true,
+      "verificar": true,
+      "fuente_normativa": "Codigo Organico del Ambiente",
+      "fuente_url": "https://www.ambiente.gob.ec/",
+      "valor_tipo": "estimacion",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional. El monto es una referencia: confirmar el tarifario o la ordenanza vigente antes de presentar el presupuesto."
+    },
+    {
+      "id": "busqueda_fonetica",
+      "nombre": "Busqueda fonetica de marca",
+      "entidad": "Servicio Nacional de Derechos Intelectuales (SENADI)",
+      "categoria": "Propiedad intelectual",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Verificacion previa de disponibilidad del signo distintivo antes de solicitar el registro.",
+      "predecesoras": [],
+      "optimista": 1,
+      "probable": 2,
+      "pesimista": 5,
+      "costo": 16.0,
+      "costo_nota": "Tasa oficial de 16 USD por clase.",
+      "requisitos": [
+        "Denominacion o logotipo de la marca",
+        "Clase de Niza del producto o servicio"
+      ],
+      "aplica_a": [
+        "marca"
+      ],
+      "obligatorio": false,
+      "verificar": true,
+      "fuente_normativa": "Ley de Propiedad Intelectual",
+      "fuente_url": "https://www.senadi.gob.ec/",
+      "valor_tipo": "estimacion",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional. El monto es una referencia: confirmar el tarifario o la ordenanza vigente antes de presentar el presupuesto."
+    },
+    {
+      "id": "registro_marca",
+      "nombre": "Registro de marca nacional",
+      "entidad": "SENADI",
+      "categoria": "Propiedad intelectual",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Registro del signo distintivo ante SENADI. Otorga proteccion por 10 anos renovables.",
+      "predecesoras": [
+        "busqueda_fonetica"
+      ],
+      "optimista": 90,
+      "probable": 180,
+      "pesimista": 365,
+      "costo": 208.0,
+      "costo_descuento_pyme": 104.0,
+      "costo_nota": "208 USD por clase; 50% de descuento para PYMES, artesanos y universidades.",
+      "requisitos": [
+        "Busqueda fonetica",
+        "Formulario de solicitud",
+        "Comprobante de pago de tasa"
+      ],
+      "aplica_a": [
+        "marca"
+      ],
+      "obligatorio": false,
+      "verificar": true,
+      "fuente_normativa": "Ley de Propiedad Intelectual; Decision 486 de la CAN",
+      "fuente_url": "https://www.senadi.gob.ec/",
+      "valor_tipo": "estimacion",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional. El monto es una referencia: confirmar el tarifario o la ordenanza vigente antes de presentar el presupuesto."
+    },
+    {
+      "id": "registro_software",
+      "nombre": "Registro de derechos de autor de software",
+      "entidad": "SENADI",
+      "categoria": "Propiedad intelectual",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Deposito y registro del codigo fuente para acreditar autoria del software.",
+      "predecesoras": [],
+      "optimista": 5,
+      "probable": 15,
+      "pesimista": 30,
+      "costo": 12.0,
+      "costo_nota": "Tasa oficial de 12 USD.",
+      "requisitos": [
+        "Codigo fuente en medio digital",
+        "Documentacion tecnica",
+        "Cedula del autor"
+      ],
+      "aplica_a": [
+        "software"
+      ],
+      "obligatorio": false,
+      "verificar": true,
+      "fuente_normativa": "Ley de Propiedad Intelectual; Codigo Organico de la Economia Social de los Conocimientos",
+      "fuente_url": "https://www.senadi.gob.ec/",
+      "valor_tipo": "estimacion",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional. El monto es una referencia: confirmar el tarifario o la ordenanza vigente antes de presentar el presupuesto."
+    },
+    {
+      "id": "factibilidad_agua",
+      "nombre": "Factibilidad y conexion de agua potable",
+      "entidad": "EMAPA / Empresa municipal de agua",
+      "categoria": "Servicios basicos",
+      "nivel": "cantonal",
+      "canton": null,
+      "descripcion": "Factibilidad tecnica y conexion del servicio de agua potable para el predio.",
+      "predecesoras": [
+        "uso_suelo"
+      ],
+      "optimista": 3,
+      "probable": 10,
+      "pesimista": 30,
+      "costo": 10.0,
+      "costo_nota": "Tasa de factibilidad mas costo de conexion segun diametro de acometida.",
+      "requisitos": [
+        "Escritura del predio",
+        "Plano de implantacion",
+        "Solicitud en ventanilla"
+      ],
+      "aplica_a": [
+        "obra_civil",
+        "local_comercial"
+      ],
+      "obligatorio": true,
+      "verificar": true,
+      "fuente_normativa": "Ordenanza de la empresa municipal de agua potable",
+      "fuente_url": "https://www.ambato.gob.ec/",
+      "valor_tipo": "estimacion",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional. El monto es una referencia: confirmar el tarifario o la ordenanza vigente antes de presentar el presupuesto."
+    },
+    {
+      "id": "conexion_energia",
+      "nombre": "Conexion de energia electrica",
+      "entidad": "Empresa distribuidora (EEASA / CNEL / EPMAPS-Elec)",
+      "categoria": "Servicios basicos",
+      "nivel": "cantonal",
+      "canton": null,
+      "descripcion": "Solicitud de medidor y conexion de energia, incluyendo revision de la instalacion interna.",
+      "predecesoras": [
+        "permiso_construccion"
+      ],
+      "optimista": 5,
+      "probable": 15,
+      "pesimista": 45,
+      "costo": 50.0,
+      "costo_nota": "Costo variable segun carga contratada y longitud de acometida.",
+      "requisitos": [
+        "Certificado de conformidad de instalacion electrica",
+        "Permiso de construccion",
+        "Predio con acceso"
+      ],
+      "aplica_a": [
+        "obra_civil",
+        "industria"
+      ],
+      "obligatorio": true,
+      "verificar": true,
+      "fuente_normativa": "Regulacion ARCERNNR; Reglamento de Suministro",
+      "fuente_url": "https://www.cnel.gob.ec/",
+      "valor_tipo": "estimacion",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional. El monto es una referencia: confirmar el tarifario o la ordenanza vigente antes de presentar el presupuesto."
+    },
+    {
+      "id": "inspeccion_final_obra",
+      "nombre": "Inspeccion final y recepcion de obra",
+      "entidad": "GAD Municipal",
+      "categoria": "Construccion",
+      "nivel": "cantonal",
+      "canton": null,
+      "descripcion": "Verificacion de que la obra ejecutada coincide con los planos aprobados. Habilita la conexion definitiva de servicios.",
+      "predecesoras": [
+        "permiso_construccion",
+        "conexion_energia",
+        "factibilidad_agua"
+      ],
+      "optimista": 3,
+      "probable": 7,
+      "pesimista": 15,
+      "costo": 0.0,
+      "costo_nota": "Generalmente sin costo si la tasa se pago al inicio.",
+      "requisitos": [
+        "Planos aprobados",
+        "Bitacora de obra",
+        "Permiso de construccion"
+      ],
+      "aplica_a": [
+        "obra_civil"
+      ],
+      "obligatorio": true,
+      "verificar": true,
+      "fuente_normativa": "Ordenanza de Edificaciones del canton correspondiente",
+      "fuente_url": "https://www.ambato.gob.ec/",
+      "valor_tipo": "estimacion",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-13",
+      "fuente_detalle": "El enlace corresponde al portal institucional; el trámite no tiene costo directo de tasa o el valor es de mercado."
+    }
+  ],
+  "nota_verificacion": "Cada registro declara 'valor_tipo' (oficial, estimacion, mercado o rango) y 'fuente_tipo'. Ningun valor monetario se marca como oficial si solo se dispone del portal institucional: en ese caso queda como estimacion y se exige confirmar el tarifario. Los parametros nacionales (SBU, IESS, IVA) estan contrastados con acuerdo ministerial, resolucion del IESS y circulares del SRI vigentes en 2026."
+}

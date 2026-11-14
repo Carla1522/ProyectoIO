@@ -1,0 +1,9 @@
+# ECUAPROJECT - dependencias de ejecucion
+# Probado con Python 3.12.7 y las versiones indicadas al 2026-11-13.
+streamlit>=1.49
+pandas>=2.0
+plotly>=5.20
+scipy>=1.11
+openpyxl>=3.1
+reportlab>=4.0
+requests>=2.31
