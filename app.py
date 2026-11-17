@@ -165,12 +165,6 @@ with tab_definir:
             "3. **Aprobacion.** Revisas y editas la tabla; nada se incorpora sin tu aprobacion.\n"
             "4. **Calculo.** El motor obtiene ruta critica, holguras, probabilidad y presupuesto."
         )
-        if cfg_ia["proveedor"] == "local":
-            st.info(
-                "Sin clave de IA la aplicacion funciona completa con plantillas y catalogo. "
-                "Configura GEMINI_API_KEY u OPENAI_API_KEY para activar la entrevista conversacional."
-            )
-
 
 # ------------------------------------------------ 2. Actividades y validacion
 with tab_tabla:
@@ -364,11 +358,14 @@ with tab_probabilidad:
         )
         col_plazo, col_res = st.columns([1, 1.7], gap="large")
         with col_plazo:
+            # Asegurar que el min_value sea al menos 1.0 y <= value (Bug 9)
+            val = float(round(cpm["duracion"]))
+            if val < 1.0: val = 1.0
             plazo = st.number_input(
                 "Plazo objetivo (dias laborables)",
                 min_value=1.0,
                 max_value=max(3650.0, cpm["duracion"] * 5),
-                value=float(round(cpm["duracion"])),
+                value=val,
                 step=1.0,
             )
             resultado = probabilidad_exito(cpm, plazo)

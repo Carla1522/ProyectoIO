@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import unicodedata
 from typing import Any, Dict, List, Optional
 
 from core.modelo import Actividad, Proyecto, cargar_base_ecuador, nuevo_id
@@ -20,10 +21,22 @@ PROVEEDORES = ("auto", "gemini", "openai", "local")
 
 # --------------------------------------------------------------- Utilidades
 def _clave(proveedor: str) -> str:
+    """Lee la clave del proveedor desde ``st.secrets`` o variables de entorno.
+
+    Antes solo consultaba ``os.getenv`` y ignoraba los secretos de Streamlit,
+    por lo que una clave configurada en la interfaz no se usaba al construir
+    la petición a la IA (Bug 2).
+    """
+    secretos = _leer_secretos()
     if proveedor == "gemini":
-        return os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
+        return (
+            secretos.get("GEMINI_API_KEY")
+            or os.getenv("GEMINI_API_KEY")
+            or os.getenv("GOOGLE_API_KEY")
+            or ""
+        )
     if proveedor == "openai":
-        return os.getenv("OPENAI_API_KEY") or ""
+        return secretos.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY") or ""
     return ""
 
 
@@ -117,7 +130,7 @@ def probar_conexion() -> Dict[str, Any]:
         if cfg["proveedor"] == "gemini":
             respuesta = requests.get(
                 f"https://generativelanguage.googleapis.com/v1beta/models/{cfg['modelo']}",
-                params={"key": cfg["gemini"]},
+                headers={"x-goog-api-key": cfg["gemini"]},
                 timeout=20,
             )
         else:
@@ -229,6 +242,9 @@ def _llamar_openai(mensajes: List[Dict[str, str]], cfg: Dict[str, str]) -> str:
 def _llamar_gemini(mensajes: List[Dict[str, str]], cfg: Dict[str, str]) -> str:
     import requests
 
+    # La clave viaja por cabecera, nunca por URL: un parámetro de consulta
+    # queda en logs, proxies y caches, y era visible en los errores de requests
+    # que la interfaz mostraba (V1).
     sistema = mensajes[0]["content"]
     historial = [
         {"role": "user" if m["role"] == "user" else "model", "parts": [{"text": m["content"]}]}
@@ -236,7 +252,7 @@ def _llamar_gemini(mensajes: List[Dict[str, str]], cfg: Dict[str, str]) -> str:
     ]
     respuesta = requests.post(
         f"https://generativelanguage.googleapis.com/v1beta/models/{cfg['modelo']}:generateContent",
-        params={"key": cfg["gemini"]},
+        headers={"x-goog-api-key": cfg["gemini"], "Content-Type": "application/json"},
         json={
             "system_instruction": {"parts": [{"text": sistema}]},
             "contents": historial,
@@ -276,11 +292,24 @@ KEYWORDS = {
 ARQUETIPOS = ["obra_civil", "alimentos", "software", "comercio", "evento", "industria"]
 
 
+def _normalizar_para_busqueda(texto: str) -> str:
+    """Quita acentos y convierte a minusculas para búsquedas insensibles.
+
+    ``core/modelo._slug`` hace lo mismo, pero aquí se busca texto libre, no
+    identificadores: sin esto palabras con tilde fallaban (Bug 4).
+    """
+    normalizado = unicodedata.normalize("NFKD", texto)
+    normalizado = "".join(
+        caracter for caracter in normalizado if not unicodedata.combining(caracter)
+    )
+    return normalizado.lower()
+
+
 def detectar_etiquetas(descripcion: str) -> List[str]:
-    texto = descripcion.lower()
+    texto = _normalizar_para_busqueda(descripcion)
     etiquetas: List[str] = []
     for etiqueta, palabras in KEYWORDS.items():
-        if any(palabra in texto for palabra in palabras):
+        if any(_normalizar_para_busqueda(palabra) in texto for palabra in palabras):
             etiquetas.append(etiqueta)
     if "obra_civil" in etiquetas:
         etiquetas.extend(["local_comercial", "ambiente_bajo"])
@@ -374,6 +403,24 @@ PLANTILLAS: Dict[str, List[Dict[str, Any]]] = {
         _tarea("ejecucion", "Ejecucion del evento", 1, 1, 2, 600, ["montaje", "promocion"]),
         _tarea("cierre", "Desmontaje y cierre administrativo", 1, 2, 4, 300, ["ejecucion"]),
     ],
+    "industria": [
+        _tarea("estudio_mercado", "Estudio de mercado y demanda del producto", 5, 10, 20, 500),
+        _tarea("topografia", "Levantamiento topografico del predio", 2, 3, 6, 250, ["estudio_mercado"]),
+        _tarea("estudio_suelos", "Estudio de suelos y mecanica de suelos", 4, 7, 12, 700, ["topografia"]),
+        _tarea("diseno_arquitectonico", "Diseno arquitectonico y planos", 5, 10, 20, 800, ["topografia"]),
+        _tarea("diseno_estructural", "Diseno estructural segun NEC", 5, 10, 18, 900, ["estudio_suelos", "diseno_arquitectonico"]),
+        _tarea("limpieza_terreno", "Limpieza y preparacion del terreno", 2, 3, 6, 300, ["topografia"], 2, 20),
+        _tarea("cimentacion", "Cimentacion y obra gris", 8, 15, 25, 4200, ["diseno_estructural", "limpieza_terreno"], 3, 20),
+        _tarea("estructura", "Estructura metalica y cubierta", 10, 18, 30, 7500, ["cimentacion"], 3, 20),
+        _tarea("instalaciones", "Instalaciones electricas e hidrosanitarias", 5, 10, 18, 2600, ["cimentacion"], 2, 20),
+        _tarea("acabados", "Acabados, pisos y pintura", 6, 12, 20, 3200, ["estructura", "instalaciones"], 2, 20),
+        _tarea("compra_maquinaria", "Compra y transporte de maquinaria", 10, 20, 35, 9000, ["acabados"], 2, 20, notas="Cotizaciones y anticipo a proveedor."),
+        _tarea("instalacion_maquinaria", "Montaje y calibracion de maquinaria", 3, 6, 10, 600, ["compra_maquinaria"], 2, 20),
+        _tarea("contratacion_personal", "Reclutamiento y contratacion de personal", 5, 10, 18, 1500, ["acabados"]),
+        _tarea("capacitacion", "Capacitacion en seguridad y proceso productivo", 2, 3, 5, 300, ["contratacion_personal", "instalacion_maquinaria"]),
+        _tarea("pruebas", "Pruebas piloto de produccion", 3, 5, 10, 500, ["capacitacion"]),
+        _tarea("inauguracion", "Inauguracion y arranque productivo", 1, 1, 2, 500, ["pruebas"]),
+    ],
 }
 
 
@@ -444,6 +491,16 @@ def plan_local(
     base = base or cargar_base_ecuador()
     catalogo = {tramite["id"]: tramite for tramite in base["tramites"]}
     escenario = dict(escenario or {})
+
+    # Extraer datos numericos de la descripcion (Bug 6)
+    m2_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:m2|m²|metros\s*cuadrados)", descripcion, re.IGNORECASE)
+    if m2_match:
+        escenario["area_m2"] = float(m2_match.group(1))
+
+    emp_match = re.search(r"(\d+)\s*(?:empleados|trabajadores|personas|obreros)", descripcion, re.IGNORECASE)
+    if emp_match:
+        escenario["empleados"] = int(emp_match.group(1))
+
     etiquetas = detectar_etiquetas(descripcion)
     arquetipo = _arquetipo(etiquetas)
     if arquetipo in ("comercio", "alimentos", "obra_civil"):
@@ -586,9 +643,10 @@ def aplicar_plan(datos: Dict[str, Any], proyecto_actual: Optional[Proyecto] = No
                     + "Supuesto tramite fuera del catalogo: se trata como actividad privada."
                 ).strip()
             else:
-                actividad.nivel = registro.get("nivel", "")
-                actividad.canton = registro.get("canton") or ""
-                actividad.entidad = registro.get("entidad", actividad.entidad)
+                # Reconstruir desde catalogo oficial para garantizar metadata legal (V3)
+                act_cat = Actividad.desde_catalogo(registro, predecesoras=actividad.predecesoras)
+                act_cat.optimista, act_cat.probable, act_cat.pesimista = a, m, b
+                actividad = act_cat
         if base_id in existentes:
             actividad.id = nuevo_id(actividad.nombre, existentes)
         mapa_ids[base_id] = actividad.id
@@ -693,7 +751,10 @@ def conversar(
                 "etiquetas": etiquetas,
                 "error": None,
             }
-        plan = plan_local(mensaje or texto_total, escenario, base, incluir_opcionales)
+        # Se pasa TODO el texto del usuario (no solo el último mensaje): el
+        # planificador local evaluaba solo el último turno y perdía el contexto
+        # de las respuestas anteriores (Bug 3).
+        plan = plan_local(texto_total, escenario, base, incluir_opcionales)
         plan["modo"] = "local"
         plan["mensaje"] = (
             "Modo local (sin clave de IA): use plantillas verificadas y el catalogo normativo. "
@@ -724,7 +785,12 @@ def conversar(
             f"{_clasificar_error(error)} Se uso el planificador local, no una respuesta "
             "de la IA. " + respaldo["mensaje"]
         )
-        respaldo["error"] = f"{type(error).__name__}: {str(error)[:200]}"
+        # V1: Sanitizar el mensaje de error para evitar fugas de claves o datos privados
+        msg_err = str(error)
+        for key in (cfg.get("gemini"), cfg.get("openai")):
+            if key and len(key) >= 6:
+                msg_err = msg_err.replace(key, "[REDACTED]")
+        respaldo["error"] = f"{type(error).__name__}: {msg_err[:200]}"
         return respaldo
 
     return {
