@@ -80,6 +80,7 @@ class Actividad:
     costo_mo_diario: float = 0.0
     # Origen
     origen: str = "manual"  # manual | copiloto | catalogo
+    costo_manual: bool = False
     notas: str = ""
 
     # ------------------------------------------------------------------ PERT
@@ -132,7 +133,10 @@ class Actividad:
         area = float(escenario.get("area_m2") or 0)
         es_pyme = tamano in ("micro", "pequena")
 
-        base = self.costo_base if self.costo_base is not None else self.costo
+        if self.costo_manual or self.origen == "manual":
+            base = self.costo
+        else:
+            base = self.costo_base if self.costo_base is not None else self.costo
         base = float(base or 0.0)
 
         usa_tarifa = bool(tarifa_cantonal and tarifa_cantonal.get("aplica"))

@@ -213,7 +213,7 @@ def validar(
             )
         if actividad.costo_mo_diario > 0 and sbu > 0:
             mensual = actividad.costo_mo_diario * float(
-                parametros.get("salario", {}).get("dias_mes", 30) or 30
+                parametros.get("salario", {}).get("dias_mes", 22) or 22
             )
             if mensual < sbu - 0.01:
                 problemas.append(
