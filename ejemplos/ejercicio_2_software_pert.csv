@@ -1,0 +1,9 @@
+ID,Actividad,Tipo,Predecesoras,a,m,b,Costo USD,Equipos USD,Trabajadores,Costo MO/dia,IVA
+A,Levantamiento de requerimientos,privada,,2,4,6,400,0,1,35,SI
+B,Diseno de arquitectura y base de datos,privada,A,3,5,9,600,0,1,40,SI
+C,Diseno de interfaz UX/UI,privada,A,2,4,8,500,0,1,35,SI
+D,Desarrollo backend y APIs,privada,B,6,10,18,1200,400,2,45,SI
+E,Desarrollo frontend web,privada,"B, C",5,9,15,900,300,2,42,SI
+F,Pruebas QA y seguridad,privada,"D, E",3,5,9,450,0,1,35,SI
+G,Registro de derechos de autor SENADI,tramite,F,5,15,30,12,0,0,0,NO
+H,Despliegue y lanzamiento,privada,F,1,2,4,350,250,1,40,SI

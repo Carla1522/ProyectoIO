@@ -44,10 +44,13 @@ CSS = f"""
         font-feature-settings: "tnum" 1, "cv05" 1;
     }}
     .stApp {{ background: {PALETA['fondo']}; }}
-    .block-container {{
-        max-width: 1280px;
-        padding-top: 1.6rem;
-        padding-bottom: 3.5rem;
+    .main .block-container {{
+        max-width: 1220px;
+        margin: 0 auto;
+        padding-top: 1.5rem;
+        padding-bottom: 4rem;
+        padding-left: 1.8rem;
+        padding-right: 1.8rem;
     }}
     h1, h2, h3, h4 {{
         color: {PALETA['tinta']};
@@ -73,9 +76,13 @@ CSS = f"""
 
     /* Encabezado */
     .ec-topbar {{
-        display: flex; align-items: flex-start; justify-content: space-between;
-        gap: 1.5rem; border-bottom: 1px solid {PALETA['borde']};
-        padding-bottom: 0.85rem; margin-bottom: 1.0rem;
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 1.5rem; border: 1px solid {PALETA['borde']};
+        background: linear-gradient(135deg, {PALETA['superficie']} 0%, #F9FBFC 100%);
+        border-left: 4px solid {PALETA['primario']};
+        border-radius: 8px;
+        padding: 1.05rem 1.4rem; margin-bottom: 0.75rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.03);
     }}
     .ec-marca {{
         font-family: {FUENTE_MONO};
@@ -84,12 +91,40 @@ CSS = f"""
     }}
     .ec-titulo {{
         font-size: 1.42rem; font-weight: 600; color: {PALETA['tinta']};
-        margin: 0.18rem 0 0.12rem 0; line-height: 1.25;
+        margin: 0.15rem 0 0.12rem 0; line-height: 1.25;
     }}
     .ec-subtitulo {{ font-size: 0.83rem; color: {PALETA['suave']}; margin: 0; }}
     .ec-contexto {{
-        font-family: {FUENTE_MONO}; font-size: 0.72rem; color: {PALETA['suave']};
-        text-align: right; white-space: nowrap; padding-top: 0.15rem;
+        font-family: {FUENTE_MONO}; font-size: 0.72rem; color: {PALETA['primario_oscuro']};
+        background: #EDF3F5; border: 1px solid #CDDDE3; border-radius: 999px;
+        padding: 0.28rem 0.75rem; text-align: right; white-space: nowrap;
+    }}
+    .ec-card {{
+        background: {PALETA['superficie']};
+        border: 1px solid {PALETA['borde']};
+        border-radius: 8px;
+        padding: 1.0rem 1.15rem;
+        margin-bottom: 0.85rem;
+    }}
+    .ec-card-titulo {{
+        font-size: 0.88rem; font-weight: 600; color: {PALETA['tinta']};
+        margin: 0 0 0.45rem 0;
+    }}
+    .ec-card p {{
+        font-size: 0.82rem; color: {PALETA['suave']};
+        margin: 0 0 0.45rem 0; line-height: 1.48;
+    }}
+    .ec-card p:last-child {{ margin-bottom: 0; }}
+    .ec-paso {{
+        display: flex; gap: 0.55rem; align-items: flex-start;
+        padding: 0.38rem 0; font-size: 0.81rem; color: {PALETA['texto']};
+        border-bottom: 1px solid {PALETA['grilla']};
+    }}
+    .ec-paso:last-child {{ border-bottom: none; padding-bottom: 0; }}
+    .ec-paso-num {{
+        font-family: {FUENTE_MONO}; font-size: 0.7rem; font-weight: 600;
+        color: {PALETA['primario']}; background: #EDF3F5; border: 1px solid #CDDDE3;
+        border-radius: 4px; padding: 0.05rem 0.36rem; flex-shrink: 0; margin-top: 0.08rem;
     }}
 
     /* Secciones */
@@ -145,9 +180,11 @@ CSS = f"""
 
     /* Franja de contexto del proyecto */
     .ec-meta {{
-        display: flex; flex-wrap: wrap; gap: 0 1.6rem;
+        display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;
+        gap: 0.6rem 1.4rem;
         border: 1px solid {PALETA['borde']}; background: {PALETA['superficie']};
-        border-radius: 5px; padding: 0.55rem 0.85rem; margin-bottom: 0.9rem;
+        border-radius: 8px; padding: 0.62rem 1.15rem; margin-top: 0; margin-bottom: 0.9rem;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.02);
     }}
     .ec-meta div {{ font-size: 0.78rem; color: {PALETA['texto']}; }}
     .ec-meta span {{
@@ -182,6 +219,10 @@ CSS = f"""
         color: #FFFFFF;
     }}
     .stButton > button[kind="primary"]:hover {{ background: {PALETA['primario_oscuro']}; }}
+    .stButton > button[kind="primary"]:disabled {{
+        background: #7B99A6 !important; border-color: #7B99A6 !important;
+        color: rgba(255, 255, 255, 0.9) !important; opacity: 0.78 !important;
+    }}
     div[data-baseweb="input"] input, div[data-baseweb="select"] > div,
     textarea {{
         font-size: 0.85rem;

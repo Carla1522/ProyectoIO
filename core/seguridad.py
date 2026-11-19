@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import math
 import re
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, List
 from urllib.parse import urlsplit
 
 LIMITE_BYTES = 2_000_000
@@ -30,6 +30,8 @@ MAX_TEXTO = 4_000
 # el escapado de HTML ya cubre la salida. Solo se rechazan caracteres de control.
 ID_VALIDO = re.compile(r"^[^\x00-\x1f\x7f]{1,64}$")
 TAMANOS_EMPRESA = ("micro", "pequena", "mediana", "grande")
+TIPOS_PERSONERIA = ("persona_natural", "sas", "compania")
+REGIMENES_TRIBUTARIOS = ("general", "rimpe_emprendedor", "rimpe_negocio_popular")
 CAMPOS_ESCENARIO = {
     "canton",
     "tamano_empresa",
@@ -37,6 +39,8 @@ CAMPOS_ESCENARIO = {
     "aplica_iva",
     "empleados",
     "admin_pct",
+    "tipo_personeria",
+    "regimen_tributario",
 }
 
 
@@ -79,10 +83,13 @@ def url_segura(url: Any) -> str:
     return limpia
 
 
-def sanitizar_nombre_archivo(nombre: Any, defecto: str = "proyecto") -> str:
+def sanitizar_nombre_archivo(
+    nombre: Any, defecto: str = "proyecto", extension: str = ".json"
+) -> str:
     """Genera un nombre de archivo sin rutas ni caracteres de control."""
     base = re.sub(r"[^A-Za-z0-9_-]+", "_", str(nombre or "")).strip("_")
-    return (base[:60] or defecto) + ".json"
+    ext = extension if extension.startswith(".") else f".{extension}"
+    return (base[:60] or defecto) + ext
 
 
 # ---------------------------------------------------------------------- JSON
@@ -205,6 +212,12 @@ def _escenario(valor: Any) -> Dict[str, Any]:
             limpio[clave] = int(_numero(dato, "escenario.empleados", 0, 100_000))
         elif clave == "admin_pct":
             limpio[clave] = _numero(dato, "escenario.admin_pct", 0.0, 100.0)
+        elif clave == "tipo_personeria":
+            personeria = _texto(dato, "escenario.tipo_personeria", maximo=30)
+            limpio[clave] = personeria if personeria in TIPOS_PERSONERIA else "persona_natural"
+        elif clave == "regimen_tributario":
+            regimen = _texto(dato, "escenario.regimen_tributario", maximo=30)
+            limpio[clave] = regimen if regimen in REGIMENES_TRIBUTARIOS else "general"
     return limpio
 
 
@@ -239,6 +252,10 @@ def validar_proyecto_json(datos: Dict[str, Any]) -> Dict[str, Any]:
         costos_tamano = bruto.get("costos_por_tamano")
         if costos_tamano is not None and not isinstance(costos_tamano, dict):
             raise ErrorDatos("El campo 'costos_por_tamano' debe ser un objeto.")
+        grava_iva = bruto.get("grava_iva")
+        if grava_iva is not None and not isinstance(grava_iva, bool):
+            raise ErrorDatos("El campo 'grava_iva' debe ser booleano.")
+        tipo_norm = tipo if tipo in ("privada", "tramite") else "privada"
         actividades.append(
             {
                 "id": ida,
@@ -246,7 +263,7 @@ def validar_proyecto_json(datos: Dict[str, Any]) -> Dict[str, Any]:
                     bruto.get("nombre"), f"actividades[{indice}].nombre",
                     maximo=300, obligatorio=True,
                 ),
-                "tipo": tipo if tipo in ("privada", "tramite") else "privada",
+                "tipo": tipo_norm,
                 "descripcion": _texto(bruto.get("descripcion"), "descripcion"),
                 "predecesoras": [
                     _identificador(p, "predecesora")
@@ -259,10 +276,12 @@ def validar_proyecto_json(datos: Dict[str, Any]) -> Dict[str, Any]:
                 "pesimista": _numero(bruto.get("pesimista"), "pesimista", 0, 100_000),
                 "costo": _numero(bruto.get("costo"), "costo", 0, 1_000_000_000),
                 "costo_equipos": _numero(bruto.get("costo_equipos"), "costo_equipos", 0),
+                "grava_iva": (tipo_norm == "privada") if grava_iva is None else grava_iva,
                 "costo_nota": _texto(bruto.get("costo_nota"), "costo_nota", 1_000),
                 "entidad": _texto(bruto.get("entidad"), "entidad", 300),
                 "categoria": _texto(bruto.get("categoria"), "categoria", 100),
                 "nivel": _texto(bruto.get("nivel"), "nivel", 30),
+                "canton": _texto(bruto.get("canton"), "canton", 80),
                 "fuente_normativa": _texto(bruto.get("fuente_normativa"), "fuente_normativa", 500),
                 "fuente_url": url_segura(bruto.get("fuente_url")),
                 "requisitos": _lista_textos(bruto.get("requisitos"), "requisitos", 60),
@@ -294,13 +313,3 @@ def validar_proyecto_json(datos: Dict[str, Any]) -> Dict[str, Any]:
         "escenario": _escenario(datos.get("escenario")),
         "actividades": actividades,
     }
-
-
-def es_identificador_valido(valor: Any) -> bool:
-    return isinstance(valor, str) and bool(ID_VALIDO.match(valor.strip()))
-
-
-def ids_desconocidos(referencias: Iterable[str], existentes: Iterable[str]) -> List[str]:
-    """Referencias que no existen en el conjunto dado, sin duplicados."""
-    disponibles = set(existentes)
-    return sorted({r for r in referencias if r not in disponibles})

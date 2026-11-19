@@ -18,15 +18,8 @@ from core.modelo import Actividad, Proyecto, cargar_base_ecuador, nuevo_id
 
 PROVEEDORES = ("auto", "gemini", "openai", "local")
 
+
 # --------------------------------------------------------------- Utilidades
-def _clave(proveedor: str) -> str:
-    if proveedor == "gemini":
-        return os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
-    if proveedor == "openai":
-        return os.getenv("OPENAI_API_KEY") or ""
-    return ""
-
-
 def _leer_secretos() -> Dict[str, str]:
     """Lee st.secrets si Streamlit esta disponible, sin acoplar el modulo."""
     try:
@@ -49,7 +42,12 @@ def configuracion() -> Dict[str, Any]:
     La clave nunca se devuelve a la interfaz: solo se informa si esta presente.
     """
     secretos = _leer_secretos()
-    gemini = secretos.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY", "") or ""
+    gemini = (
+        secretos.get("GEMINI_API_KEY")
+        or os.getenv("GEMINI_API_KEY", "")
+        or os.getenv("GOOGLE_API_KEY", "")
+        or ""
+    )
     openai = secretos.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY", "") or ""
     proveedor = (secretos.get("AI_PROVIDER") or os.getenv("AI_PROVIDER") or "auto").lower()
     if proveedor not in PROVEEDORES:
@@ -79,14 +77,16 @@ def _clasificar_error(error: Exception) -> str:
     if "401" in texto or "403" in texto or "invalid_api_key" in texto.lower() or "API key" in texto:
         return "La clave de API fue rechazada. Verifica la credencial y sus permisos."
     if "429" in texto:
-        return "Se agoto la cuota del proveedor. Espera un momento o revisa tu plan."
+        return "Se agoto la cuota temporal del proveedor de IA (limite de peticiones por minuto). Espera unos segundos e intenta nuevamente."
+    if "503" in texto or "500" in texto or "502" in texto or "504" in texto:
+        return "Los servidores del proveedor de IA tuvieron una interrupcion temporal o sobrecarga momentanea."
     if "404" in texto:
         return "El modelo configurado no existe o no esta disponible para esta clave."
     if "JSON" in texto or "json" in texto:
         return "La respuesta del proveedor no fue un JSON valido; se uso el plan local."
     if "Connection" in texto or "NameResolution" in texto or "proxy" in texto.lower():
         return "No hay conexion con el proveedor de IA; se uso el plan local."
-    return f"Error de comunicacion con el proveedor ({type(error).__name__}); se uso el plan local."
+    return f"Interrupcion en la comunicacion con el proveedor ({type(error).__name__}); se uso el plan de respaldo local."
 
 
 def probar_conexion() -> Dict[str, Any]:
@@ -174,7 +174,9 @@ REGLAS DURAS
 3. Toda predecesora debe existir en la lista de actividades que devuelves.
 4. Respetas el orden legal: RUC antes de patente, uso de suelo antes de planos,
    bomberos y patente antes de habilitacion, permiso ARCSA antes de notificacion
-   sanitaria, busqueda fonetica antes de registro de marca.
+   sanitaria, busqueda fonetica antes de registro de marca. Si no hay construccion
+   de obra nueva (local arrendado o existente), NO uses permiso_construccion ni
+   aprobacion_planos; para agua o energia electrica usa uso_suelo o ruc como predecesora.
 5. Estimaciones PERT realistas en dias laborables con a <= m <= b.
 6. Maximo 3 preguntas por turno. Si ya tienes ubicacion, tamano, si hay local o
    construccion, empleados y si vende con marca, genera el proyecto.
@@ -188,11 +190,11 @@ RESPUESTA: un unico objeto JSON, sin markdown:
   "proyecto": {
     "nombre": "...",
     "descripcion": "...",
-    "escenario": {"canton": "Ambato", "tamano_empresa": "micro", "area_m2": 0, "aplica_iva": false},
+    "escenario": {"canton": "Ambato", "tamano_empresa": "micro", "tipo_personeria": "persona_natural", "regimen_tributario": "general", "area_m2": 0, "aplica_iva": false},
     "actividades": [
       {"id": "snake_case", "nombre": "...", "tipo": "privada|tramite",
        "predecesoras": ["id"], "optimista": 1, "probable": 2, "pesimista": 4,
-       "costo": 0, "trabajadores": 0, "costo_mo_diario": 0, "notas": ""}
+       "costo": 0, "trabajadores": 0, "costo_mo_diario": 0, "grava_iva": true, "notas": ""}
     ]
   }
 }
@@ -227,6 +229,7 @@ def _llamar_openai(mensajes: List[Dict[str, str]], cfg: Dict[str, str]) -> str:
 
 
 def _llamar_gemini(mensajes: List[Dict[str, str]], cfg: Dict[str, str]) -> str:
+    import time
     import requests
 
     sistema = mensajes[0]["content"]
@@ -234,18 +237,38 @@ def _llamar_gemini(mensajes: List[Dict[str, str]], cfg: Dict[str, str]) -> str:
         {"role": "user" if m["role"] == "user" else "model", "parts": [{"text": m["content"]}]}
         for m in mensajes[1:]
     ]
-    respuesta = requests.post(
-        f"https://generativelanguage.googleapis.com/v1beta/models/{cfg['modelo']}:generateContent",
-        params={"key": cfg["gemini"]},
-        json={
-            "system_instruction": {"parts": [{"text": sistema}]},
-            "contents": historial,
-            "generationConfig": {"temperature": 0.3, "responseMimeType": "application/json"},
-        },
-        timeout=90,
-    )
-    respuesta.raise_for_status()
-    return respuesta.json()["candidates"][0]["content"]["parts"][0]["text"]
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{cfg['modelo']}:generateContent"
+    payload = {
+        "system_instruction": {"parts": [{"text": sistema}]},
+        "contents": historial,
+        "generationConfig": {"temperature": 0.3, "responseMimeType": "application/json"},
+    }
+
+    ultimo_error: Optional[Exception] = None
+    for intento in range(2):
+        try:
+            respuesta = requests.post(
+                url,
+                params={"key": cfg["gemini"]},
+                json=payload,
+                timeout=90,
+            )
+            if respuesta.status_code in (429, 500, 502, 503, 504) and intento == 0:
+                time.sleep(2.0)
+                continue
+            respuesta.raise_for_status()
+            return respuesta.json()["candidates"][0]["content"]["parts"][0]["text"]
+        except requests.exceptions.HTTPError:
+            raise
+        except requests.exceptions.RequestException as err:
+            ultimo_error = err
+            if intento == 0:
+                time.sleep(2.0)
+                continue
+            raise err
+    if ultimo_error:
+        raise ultimo_error
+    raise RuntimeError("No se obtuvo respuesta de Gemini.")
 
 
 def _extraer_json(texto: str) -> Dict[str, Any]:
@@ -262,18 +285,23 @@ def _extraer_json(texto: str) -> Dict[str, Any]:
 # ------------------------------------------------------------ Plan local
 KEYWORDS = {
     "alimentos": ["restaurant", "cafeter", "comida", "alimento", "panader", "pasteler", "cocina", "mercado"],
-    "salud": ["farmacia", "clinica", "consultorio", "medic", "salud", "laboratorio"],
+    "salud": ["farmacia", "clinica", "consultorio", "medic", "salud", "laboratorio", "odontolog", "veterinaria", "centro medico"],
     "cosmeticos": ["cosmetic", "perfume", "maquillaje", "cuidado personal"],
     "software": ["software", "aplicacion", "app ", "plataforma", "sistema web", "saas", "desarrollo"],
     "obra_civil": ["construir", "construccion", "galpon", "obra", "nave industrial", "planta", "edificio", "adecuacion", "remodelacion"],
-    "industria": ["fabrica", "fabricar", "muebles", "carpinter", "produccion", "manufactura", "taller"],
+    "industria": ["fabrica", "fabricar", "muebles", "carpinter", "produccion", "manufactura", "taller", "textil", "metalmecanic"],
+    "turismo": ["hotel", "hostal", "hosteria", "turism", "agencia de viajes", "cabana", "glamping", "hospedaje", "alojamiento"],
+    "agro": ["agricol", "agro", "finca", "cultivo", "invernadero", "ganader", "avicol", "cacao", "cafe", "banano", "flores", "granja"],
     "evento": ["evento", "feria", "concierto", "expo", "activacion"],
-    "comercio": ["tienda", "local", "negocio", "bazar", "almacen", "distribuidora", "papeleria"],
+    "comercio": ["tienda", "local", "negocio", "bazar", "almacen", "distribuidora", "papeleria", "ferreteria"],
     "marca": ["marca propia", "marca", "branding", "logo", "patente"],
+    "persona_juridica": ["sas", "s.a.s", "compania", "cia ltda", "sociedad", "empresa constituida"],
     "empleador": ["empleado", "trabajador", "personal", "contratar", "obreros"],
 }
 
-ARQUETIPOS = ["obra_civil", "alimentos", "software", "comercio", "evento", "industria"]
+ARQUETIPOS = [
+    "obra_civil", "industria", "alimentos", "salud", "turismo", "agro", "software", "comercio", "evento",
+]
 
 
 def detectar_etiquetas(descripcion: str) -> List[str]:
@@ -284,10 +312,12 @@ def detectar_etiquetas(descripcion: str) -> List[str]:
             etiquetas.append(etiqueta)
     if "obra_civil" in etiquetas:
         etiquetas.extend(["local_comercial", "ambiente_bajo"])
-    if "alimentos" in etiquetas:
+    if "alimentos" in etiquetas or "salud" in etiquetas or "turismo" in etiquetas:
         etiquetas.extend(["local_comercial", "ambiente_bajo"])
     if "industria" in etiquetas:
-        etiquetas.extend(["ambiente_medio"])
+        etiquetas.extend(["local_comercial", "ambiente_medio"])
+    if "agro" in etiquetas:
+        etiquetas.append("ambiente_bajo")
     if "comercio" in etiquetas:
         etiquetas.append("local_comercial")
     if "todos" not in etiquetas:
@@ -297,7 +327,7 @@ def detectar_etiquetas(descripcion: str) -> List[str]:
 
 def _tarea(id_: str, nombre: str, a: float, m: float, b: float, costo: float,
            preds: Optional[List[str]] = None, trabajadores: int = 0,
-           mo_diario: float = 0.0, notas: str = "") -> Dict[str, Any]:
+           mo_diario: float = 0.0, notas: str = "", grava_iva: bool = True) -> Dict[str, Any]:
     return {
         "id": id_,
         "nombre": nombre,
@@ -309,6 +339,7 @@ def _tarea(id_: str, nombre: str, a: float, m: float, b: float, costo: float,
         "costo": costo,
         "trabajadores": trabajadores,
         "costo_mo_diario": mo_diario,
+        "grava_iva": grava_iva,
         "notas": notas,
     }
 
@@ -374,12 +405,53 @@ PLANTILLAS: Dict[str, List[Dict[str, Any]]] = {
         _tarea("ejecucion", "Ejecucion del evento", 1, 1, 2, 600, ["montaje", "promocion"]),
         _tarea("cierre", "Desmontaje y cierre administrativo", 1, 2, 4, 300, ["ejecucion"]),
     ],
+    "industria": [
+        _tarea("diseno_producto", "Diseno de producto, fichas tecnicas y proceso", 4, 8, 15, 650),
+        _tarea("adecuacion_planta", "Adecuacion de planta o taller productivo", 6, 12, 22, 3800, ["diseno_producto"], 3, 20),
+        _tarea("compra_maquinaria", "Compra y transporte de maquinaria productiva", 8, 16, 28, 7500),
+        _tarea("instalacion_maquinaria", "Instalacion y calibracion de maquinaria", 3, 6, 10, 800, ["adecuacion_planta", "compra_maquinaria"], 2, 22),
+        _tarea("contratacion_personal", "Contratacion de operarios y tecnicos", 4, 8, 14, 900, ["adecuacion_planta"]),
+        _tarea("capacitacion", "Capacitacion tecnica y seguridad industrial", 2, 4, 7, 350, ["contratacion_personal", "instalacion_maquinaria"]),
+        _tarea("lote_piloto", "Fabricacion de lote piloto y control de calidad", 3, 5, 10, 950, ["capacitacion"]),
+        _tarea("pruebas", "Ajustes finales de produccion", 2, 3, 6, 300, ["lote_piloto"]),
+        _tarea("inauguracion", "Inicio de produccion comercial", 1, 1, 2, 400, ["pruebas"]),
+    ],
+    "salud": [
+        _tarea("diseno_clinico", "Definicion de cartera de servicios y planos sanitarios", 4, 7, 12, 600),
+        _tarea("adecuacion_local", "Adecuacion de consultorios, areas limpias y bioseguridad", 8, 14, 24, 5200, ["diseno_clinico"], 3, 22),
+        _tarea("equipamiento_medico", "Adquisicion e instalacion de equipamiento medico", 6, 12, 20, 8500, ["diseno_clinico"]),
+        _tarea("protocolos_clinicos", "Manuales de bioseguridad y protocolos clinicos", 3, 6, 10, 450, ["diseno_clinico"]),
+        _tarea("contratacion_personal", "Contratacion de profesionales de la salud (SENESCYT)", 5, 10, 18, 1200, ["adecuacion_local"]),
+        _tarea("capacitacion", "Capacitacion en manejo de desechos y protocolos", 2, 3, 5, 300, ["contratacion_personal", "protocolos_clinicos"]),
+        _tarea("pruebas", "Marcha blanca y verificacion pre-inspeccion ACESS", 2, 4, 7, 350, ["equipamiento_medico", "capacitacion"]),
+        _tarea("inauguracion", "Apertura del establecimiento de salud", 1, 1, 2, 450, ["pruebas"]),
+    ],
+    "turismo": [
+        _tarea("diseno_concepto", "Definicion de concepto turistico y tarifas", 3, 6, 10, 450),
+        _tarea("adecuacion_local", "Adecuacion de habitaciones, areas comunes y senaletica", 8, 16, 28, 6000, ["diseno_concepto"], 3, 20),
+        _tarea("equipamiento", "Mobiliario, lenceria y equipamiento turistico", 5, 10, 18, 4800, ["adecuacion_local"]),
+        _tarea("sistema_reservas", "Sistema de reservas, canales OTA y facturacion", 3, 5, 9, 650, ["diseno_concepto"]),
+        _tarea("contratacion_personal", "Contratacion de recepcion, operacion y servicio", 4, 8, 14, 850, ["adecuacion_local"]),
+        _tarea("capacitacion", "Capacitacion en hospitalidad, idiomas y seguridad", 2, 4, 7, 350, ["contratacion_personal", "sistema_reservas"]),
+        _tarea("pruebas", "Operacion piloto y control de calidad de servicio", 2, 4, 7, 400, ["equipamiento", "capacitacion"]),
+        _tarea("inauguracion", "Lanzamiento e inauguracion turistica", 1, 1, 2, 500, ["pruebas"]),
+    ],
+    "agro": [
+        _tarea("analisis_suelo_agua", "Analisis de suelos, agua y zonificacion del predio", 3, 5, 10, 380),
+        _tarea("preparacion_terreno", "Preparacion del terreno y obras de drenaje", 5, 10, 18, 1800, ["analisis_suelo_agua"], 3, 18),
+        _tarea("infraestructura_riego", "Instalacion de sistema de riego e invernadero/corral", 6, 12, 20, 4200, ["preparacion_terreno"], 2, 20),
+        _tarea("siembra_implementacion", "Adquisicion de semillas/insumos y siembra inicial", 4, 7, 12, 2400, ["infraestructura_riego"], 3, 18, grava_iva=False),
+        _tarea("contratacion_personal", "Contratacion de personal tecnico y de campo", 3, 6, 10, 500, ["preparacion_terreno"]),
+        _tarea("manejo_agronomico", "Manejo agronomico, fitosanitario y trazabilidad BPA", 10, 20, 35, 1400, ["siembra_implementacion", "contratacion_personal"], 2, 18),
+        _tarea("cosecha_piloto", "Cosecha piloto, poscosecha y empaque", 3, 6, 10, 700, ["manejo_agronomico"], 3, 18, grava_iva=False),
+        _tarea("comercializacion", "Acuerdo comercial y despacho inicial", 2, 4, 7, 400, ["cosecha_piloto"]),
+    ],
 }
 
 
 def _arquetipo(etiquetas: List[str]) -> str:
     for candidato in ARQUETIPOS:
-        if candidato in etiquetas:
+        if candidato in etiquetas and candidato in PLANTILLAS:
             return candidato
     return "comercio"
 
@@ -397,9 +469,14 @@ ENLACES: Dict[str, List[str]] = {
     "notificacion_sanitaria": ["formulacion_producto", "diseno_etiqueta", "analisis_laboratorio"],
     "inspeccion_final_obra": ["acabados"],
     "habilitacion_municipal": ["pruebas"],
-    "registro_marca": ["lanzamiento", "inauguracion"],
+    "registro_marca": ["lanzamiento", "inauguracion", "comercializacion"],
     "registro_software": ["qa"],
     "factibilidad_agua": ["permiso_construccion"],
+    "permiso_acess": ["adecuacion_local", "equipamiento_medico"],
+    "gestion_desechos_sanitarios": ["adecuacion_local"],
+    "luaf_turismo": ["adecuacion_local"],
+    "certificacion_bpa": ["manejo_agronomico"],
+    "certificado_inen": ["lote_piloto"],
 }
 
 
@@ -431,6 +508,8 @@ def _seleccionar_tramites(
             seleccion.append(tramite_id)
         elif tramite_id == "registro_software" and "software" in etiquetas_set:
             seleccion.append(tramite_id)
+        elif tramite_id == "regimen_rimpe" and "rimpe" in etiquetas_set:
+            seleccion.append(tramite_id)
     return _cerrar_dependencias(seleccion, catalogo)
 
 
@@ -446,18 +525,24 @@ def plan_local(
     escenario = dict(escenario or {})
     etiquetas = detectar_etiquetas(descripcion)
     arquetipo = _arquetipo(etiquetas)
-    if arquetipo in ("comercio", "alimentos", "obra_civil"):
+    if arquetipo in ("comercio", "alimentos", "obra_civil", "industria", "salud", "turismo"):
         etiquetas.append("local_comercial")
+    if escenario.get("tipo_personeria") in ("sas", "compania"):
+        etiquetas.append("persona_juridica")
+    if str(escenario.get("regimen_tributario") or "").startswith("rimpe"):
+        etiquetas.append("rimpe")
     if "marca" in etiquetas:
         etiquetas.append("marca")
     if str(escenario.get("tamano_empresa", "micro")) == "micro":
         etiquetas.append("microempresa")
-    if any(tarea["id"] == "contratacion_personal" for tarea in PLANTILLAS[arquetipo]):
+    plantilla = PLANTILLAS.get(arquetipo) or PLANTILLAS["comercio"]
+    if any(tarea["id"] == "contratacion_personal" for tarea in plantilla):
         etiquetas.append("empleador")
         if int(escenario.get("empleados", 0) or 0) > 10:
             etiquetas.append("empleador_grande")
+    etiquetas = list(dict.fromkeys(etiquetas))
 
-    privadas = [dict(tarea) for tarea in PLANTILLAS[arquetipo]]
+    privadas = [dict(tarea) for tarea in plantilla]
     ids_privadas = {tarea["id"] for tarea in privadas}
 
     # Las tareas privadas con predecesoras inexistentes se limpian
@@ -474,13 +559,20 @@ def plan_local(
         actividad = Actividad.desde_catalogo(tramite, predecesoras=list(dict.fromkeys(preds))).to_dict()
         actividades.append(actividad)
 
-    # Enlace de la obra con el tramite final
+    # Enlace de la obra con los tramites que dependen de ella cuando hay construccion
     habilitacion = next((a for a in actividades if a["id"] == "habilitacion_municipal"), None)
     if habilitacion and "inauguracion" in ids_privadas:
         habilitacion["predecesoras"] = list(dict.fromkeys(habilitacion["predecesoras"] + ["inauguracion"]))
+    conexion_energia = next((a for a in actividades if a["id"] == "conexion_energia"), None)
+    if conexion_energia and any(a["id"] == "permiso_construccion" for a in actividades):
+        conexion_energia["predecesoras"] = list(
+            dict.fromkeys(conexion_energia["predecesoras"] + ["permiso_construccion"])
+        )
 
     escenario.setdefault("canton", "Ambato")
     escenario.setdefault("tamano_empresa", "micro")
+    escenario.setdefault("tipo_personeria", "persona_natural")
+    escenario.setdefault("regimen_tributario", "general")
     escenario.setdefault("area_m2", 0)
     escenario.setdefault("aplica_iva", False)
 
@@ -542,15 +634,27 @@ def aplicar_plan(datos: Dict[str, Any], proyecto_actual: Optional[Proyecto] = No
     degrada a actividad privada cualquier supuesto tramite publico cuyo id no
     exista: una tasa inventada no debe entrar al presupuesto como si fuera legal.
     """
-    proyecto_actual = proyecto_actual or Proyecto()
+    if proyecto_actual is None:
+        proyecto_actual = Proyecto()
     escenario_plan = datos.get("escenario")
+    escenario_combinado = dict(proyecto_actual.escenario)
+    if isinstance(escenario_plan, dict):
+        for clave, valor in escenario_plan.items():
+            if clave in ("area_m2", "empleados"):
+                if (valor is None or float(valor or 0) <= 0) and float(escenario_combinado.get(clave) or 0) > 0:
+                    continue
+            if clave in ("tipo_personeria", "regimen_tributario", "canton", "tamano_empresa", "aplica_iva"):
+                if clave in proyecto_actual.escenario and not valor:
+                    continue
+            if clave == "tipo_personeria" and escenario_combinado.get(clave) in ("sas", "compania") and valor == "persona_natural":
+                continue
+            if clave == "regimen_tributario" and str(escenario_combinado.get(clave) or "").startswith("rimpe") and valor == "general":
+                continue
+            escenario_combinado[clave] = valor
     proyecto = Proyecto(
         nombre=str(datos.get("nombre") or "Proyecto generado"),
         descripcion=str(datos.get("descripcion") or ""),
-        escenario={
-            **proyecto_actual.escenario,
-            **(dict(escenario_plan) if isinstance(escenario_plan, dict) else {}),
-        },
+        escenario=escenario_combinado,
     )
     existentes: List[str] = []
     mapa_ids: Dict[str, str] = {}
@@ -589,6 +693,9 @@ def aplicar_plan(datos: Dict[str, Any], proyecto_actual: Optional[Proyecto] = No
                 actividad.nivel = registro.get("nivel", "")
                 actividad.canton = registro.get("canton") or ""
                 actividad.entidad = registro.get("entidad", actividad.entidad)
+                actividad.grava_iva = False
+        else:
+            actividad.grava_iva = bool(bruto.get("grava_iva", True))
         if base_id in existentes:
             actividad.id = nuevo_id(actividad.nombre, existentes)
         mapa_ids[base_id] = actividad.id
@@ -672,7 +779,7 @@ def conversar(
     base = cargar_base_ecuador()
     cfg = configuracion()
 
-    if cfg["proveedor"] == "local" or not _clave(cfg["proveedor"]):
+    if cfg["proveedor"] == "local" or not cfg.get("clave_configurada"):
         texto_total = " ".join([m["content"] for m in historial if m["role"] == "user"] + [mensaje])
         etiquetas = detectar_etiquetas(texto_total)
         suficientemente_claro = len(texto_total.split()) >= 12 and any(

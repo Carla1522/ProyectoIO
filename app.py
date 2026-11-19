@@ -28,8 +28,8 @@ from core.calculos_cpm_pert import (
     sugerencias_aceleracion,
 )
 from core.costos_cantonales import resumen_canton
-from core.modelo import Proyecto, cargar_base_ecuador, cargar_parametros
-from core.seguridad import escapar, url_segura
+from core.modelo import Actividad, Proyecto, cargar_base_ecuador, cargar_parametros
+from core.seguridad import escapar, sanitizar_nombre_archivo, url_segura
 from core.validador import ERROR, hay_errores, tramites_obligatorios_faltantes, validar
 from services import copiloto_ia, exportador
 from ui import componentes, graficos
@@ -52,26 +52,65 @@ def proyecto_demo() -> Proyecto:
         "Quiero construir un galpon para fabricar muebles en Ambato",
         {"canton": "Ambato", "tamano_empresa": "micro", "area_m2": 300, "empleados": 8},
     )
+    plan["proyecto"]["nombre"] = "Planta de Muebles en Ambato (Demo)"
     return copiloto_ia.aplicar_plan(plan["proyecto"])
+
+
+def proyecto_pert_basico() -> Proyecto:
+    proyecto = Proyecto(
+        nombre="Planificacion manual PERT (Ejemplo A-E)",
+        descripcion="Red PERT clasica de 5 actividades lista para editar.",
+    )
+    for ida, nombre, preds, a, m, b in (
+        ("A", "Definicion y diseno inicial", [], 2.0, 4.0, 6.0),
+        ("B", "Adquisicion de insumos", ["A"], 3.0, 5.0, 9.0),
+        ("C", "Permisos y documentacion", ["A"], 1.0, 3.0, 8.0),
+        ("D", "Ejecucion principal", ["B", "C"], 4.0, 6.0, 10.0),
+        ("E", "Pruebas y entrega final", ["D"], 1.0, 2.0, 4.0),
+    ):
+        proyecto.agregar(
+            Actividad(
+                id=ida,
+                nombre=nombre,
+                predecesoras=preds,
+                optimista=a,
+                probable=m,
+                pesimista=b,
+                origen="manual",
+            )
+        )
+    return proyecto
 
 
 def inicializar_estado() -> None:
     st.session_state.setdefault("_proyecto_revision", 0)
     st.session_state.setdefault("chat", [])
-    st.session_state.setdefault("calculado", True)
+    st.session_state.setdefault("modo_manual", False)
     if "proyecto" not in st.session_state:
-        st.session_state["proyecto"] = proyecto_demo()
+        st.session_state["proyecto"] = Proyecto(nombre="Nuevo proyecto", descripcion="")
 
 
 inicializar_estado()
 
 # --------------------------------------------------------------- Navegacion
 st.sidebar.markdown("#### Proyecto")
-if st.sidebar.button("Cargar ejemplo: galpon de muebles", width="stretch"):
-    componentes.nuevo_proyecto_sesion(proyecto_demo(), reiniciar_chat=True)
-    st.rerun()
-if st.sidebar.button("Nuevo proyecto vacio", width="stretch"):
+if st.sidebar.button("Nuevo proyecto con IA", width="stretch"):
+    st.session_state["modo_manual"] = False
     componentes.nuevo_proyecto_sesion(Proyecto(nombre="Nuevo proyecto"), reiniciar_chat=True)
+    st.rerun()
+if st.sidebar.button("Planificacion manual (PERT)", width="stretch"):
+    st.session_state["modo_manual"] = True
+    componentes.nuevo_proyecto_sesion(
+        Proyecto(nombre="Planificacion manual PERT"), reiniciar_chat=True
+    )
+    st.rerun()
+if st.sidebar.button("Cargar proyecto de ejemplo", width="stretch"):
+    st.session_state["modo_manual"] = False
+    componentes.nuevo_proyecto_sesion(proyecto_demo(), reiniciar_chat=True)
+    st.session_state["proyecto_cargado_msg"] = (
+        "Proyecto de ejemplo cargado (34 actividades). Revisa las pestanas "
+        "Cronograma y Red, Presupuesto y Costos, Tabla de Actividades y Riesgo PERT."
+    )
     st.rerun()
 componentes.panel_guardar_cargar(st.session_state["proyecto"])
 
@@ -89,132 +128,29 @@ st.sidebar.caption(
 cfg_ia = copiloto_ia.configuracion()
 contexto = (
     f"{escenario.get('canton', '')} · {len(proyecto.actividades)} actividades · "
-    + ("IA conectada" if cfg_ia["proveedor"] != "local" else "modo local")
+    + ("IA conectada" if cfg_ia["proveedor"] != "local" else "Modo local")
+)
+es_inicio_vacio = (
+    not proyecto.actividades
+    and (proyecto.nombre or "").strip()
+    in ("", "Nuevo proyecto", "Proyecto en blanco", "Proyecto sin titulo", "Planificacion manual PERT")
+)
+titulo_encabezado = (
+    "Planificacion manual PERT"
+    if es_inicio_vacio and st.session_state.get("modo_manual")
+    else (
+        "Planificacion, Cronograma y Presupuesto en Ecuador"
+        if es_inicio_vacio
+        else (proyecto.nombre or "Proyecto sin titulo")
+    )
 )
 encabezado(
-    proyecto.nombre or "Proyecto sin titulo",
-    "Planificacion CPM/PERT, presupuesto y cumplimiento normativo del Ecuador",
+    titulo_encabezado,
+    "Motor CPM/PERT, catalogo normativo de tramites y presupuesto laboral-tributario",
     contexto,
 )
 
-tab_definir, tab_tabla, tab_resultados, tab_probabilidad, tab_costos = st.tabs(
-    ["Definicion", "Actividades", "Cronograma", "Riesgo y plazo", "Presupuesto"]
-)
-
-
-# ------------------------------------------------------- 1. Definir proyecto
-with tab_definir:
-    with st.form("datos_proyecto"):
-        col_nombre, col_desc = st.columns([1, 2], gap="large")
-        with col_nombre:
-            nombre = st.text_input("Nombre del proyecto", value=proyecto.nombre)
-        with col_desc:
-            descripcion = st.text_area(
-                "Descripcion",
-                value=proyecto.descripcion,
-                height=84,
-                placeholder="Ej: Galpon de 300 m2 para fabricar muebles en Ambato, con 8 empleados.",
-            )
-        if st.form_submit_button("Guardar datos"):
-            proyecto.nombre = nombre.strip() or "Proyecto sin titulo"
-            proyecto.descripcion = descripcion.strip()
-            st.session_state["proyecto"] = proyecto
-            st.rerun()
-
-    st.divider()
-    col_izq, col_der = st.columns([1.5, 1], gap="large")
-    with col_izq:
-        componentes.panel_copiloto(
-            proyecto, incluir_opcionales=escenario.get("empleados", 0) > 0
-        )
-    with col_der:
-        seccion("Estado del proyecto")
-        tramites = sum(1 for a in proyecto.actividades.values() if a.tipo == "tramite")
-        st.markdown(f"**{len(proyecto.actividades)} actividades** · {tramites} tramites publicos")
-
-        etiquetas = copiloto_ia.detectar_etiquetas(
-            f"{proyecto.nombre} {proyecto.descripcion}"
-        )
-        faltantes = tramites_obligatorios_faltantes(proyecto, etiquetas, BASE_ECUADOR)
-        if faltantes:
-            with st.expander(f"Tramites obligatorios sugeridos ({len(faltantes)})"):
-                for tramite in faltantes:
-                    st.markdown(f"- **{escapar(tramite['nombre'])}** · {escapar(tramite['entidad'])}")
-        else:
-            st.caption("No hay tramites obligatorios pendientes para este tipo de proyecto.")
-
-        if st.button(
-            "Armar plan base con el catalogo",
-            width="stretch",
-            help="Genera actividades privadas y tramites aplicables. Luego podras editarlos.",
-        ):
-            with st.spinner("Ensamblando actividades y tramites..."):
-                plan = copiloto_ia.plan_local(
-                    proyecto.descripcion or proyecto.nombre, escenario
-                )
-                plan["modo"] = "local"
-                st.session_state["plan_pendiente"] = plan["proyecto"] | {"modo": "local"}
-            st.rerun()
-
-        st.divider()
-        seccion("Como se construye el plan")
-        st.markdown(
-            "1. **Entrevista.** El copiloto identifica giro, ubicacion y tamano del proyecto.\n"
-            "2. **Propuesta.** Combina actividades privadas con los tramites del catalogo y sus "
-            "predecesoras legales.\n"
-            "3. **Aprobacion.** Revisas y editas la tabla; nada se incorpora sin tu aprobacion.\n"
-            "4. **Calculo.** El motor obtiene ruta critica, holguras, probabilidad y presupuesto."
-        )
-        if cfg_ia["proveedor"] == "local":
-            st.info(
-                "Sin clave de IA la aplicacion funciona completa con plantillas y catalogo. "
-                "Configura GEMINI_API_KEY u OPENAI_API_KEY para activar la entrevista conversacional."
-            )
-
-
-# ------------------------------------------------ 2. Actividades y validacion
-with tab_tabla:
-    proyecto_editado = componentes.tabla_editable(proyecto)
-    if proyecto_editado.to_dict() != proyecto.to_dict():
-        st.session_state["proyecto"] = proyecto_editado
-        proyecto = proyecto_editado
-        st.session_state["calculado"] = True
-
-    componentes.panel_catalogo(proyecto)
-
-    st.divider()
-    problemas = validar(proyecto, BASE_ECUADOR, PARAMETROS)
-    componentes.mostrar_problemas(problemas)
-
-    huerfanas = proyecto.dependencias_huerfanas()
-    if huerfanas:
-        total = sum(len(v) for v in huerfanas.values())
-        with st.expander(f"Dependencias conservadas sin destino ({total})", expanded=True):
-            for ida, faltantes in huerfanas.items():
-                st.markdown(
-                    f'<div class="ec-item"><strong>{escapar(ida)}</strong> → '
-                    f'{escapar(", ".join(faltantes))}</div>',
-                    unsafe_allow_html=True,
-                )
-            st.caption(
-                "No se eliminan automaticamente. Corrige el ID en la tabla o borra la "
-                "referencia cuando estes seguro de que ya no aplica."
-            )
-
-    col_a, col_b = st.columns([1, 2])
-    with col_a:
-        if st.button("Recalcular", type="primary", width="stretch"):
-            st.session_state["calculado"] = True
-            st.rerun()
-    with col_b:
-        st.caption(
-            "Tiempo esperado PERT te = (a + 4m + b) / 6 y varianza (b - a)^2 / 36. "
-            "El cronograma se actualiza automaticamente al editar la tabla."
-        )
-
-
 # --------------------------------------------------------- Calculo unico
-proyecto = st.session_state["proyecto"]
 problemas = validar(proyecto, BASE_ECUADOR, PARAMETROS)
 cpm = None
 error_calculo = None
@@ -232,25 +168,220 @@ flujo = (
     else []
 )
 
+ETIQUETAS_PERSONERIA = {
+    "persona_natural": "Persona natural",
+    "sas": "S.A.S.",
+    "compania": "Cia. Ltda. / S.A.",
+}
+ETIQUETAS_REGIMEN = {
+    "general": "Regimen General",
+    "rimpe_emprendedor": "RIMPE Emprendedor",
+    "rimpe_negocio_popular": "RIMPE Negocio Popular",
+}
+pers_lbl = ETIQUETAS_PERSONERIA.get(str(escenario.get("tipo_personeria") or "persona_natural"), "Persona natural")
+reg_lbl = ETIQUETAS_REGIMEN.get(str(escenario.get("regimen_tributario") or "general"), "Regimen General")
+
 barra_meta(
     [
         ("Canton", str(escenario.get("canton", "sin definir"))),
-        ("Actividades", f"{len(proyecto.actividades)} ({sum(1 for a in proyecto.actividades.values() if a.tipo == 'tramite')} tramites)"),
-        ("Plazo estimado", f"{cpm['duracion']:.1f} dias" if cpm else "sin calcular"),
+        ("Perfil fiscal", f"{pers_lbl} · {reg_lbl}"),
+        (
+            "Actividades",
+            f"{len(proyecto.actividades)} "
+            f"({sum(1 for a in proyecto.actividades.values() if a.tipo == 'tramite')} tramites)"
+            if proyecto.actividades
+            else "0 (listo para planificar)",
+        ),
+        ("Plazo estimado", f"{cpm['duracion']:.1f} dias" if cpm else "Por definir"),
         ("Presupuesto", f"USD {costos['total']:,.2f}"),
-        ("Catalogo", f"v{BASE_ECUADOR.get('version', '')}"),
+    ]
+)
+
+msg_cargado = st.session_state.pop("proyecto_cargado_msg", "")
+if msg_cargado:
+    st.success(msg_cargado)
+for aviso_cargado in st.session_state.pop("proyecto_cargado_avisos", []):
+    st.warning(aviso_cargado)
+
+etiqueta_tab_inicio = (
+    "Planificacion manual" if st.session_state.get("modo_manual") else "Copiloto IA"
+)
+tab_copiloto, tab_cronograma, tab_presupuesto, tab_tabla, tab_probabilidad = st.tabs(
+    [
+        etiqueta_tab_inicio,
+        "Cronograma y Red",
+        "Presupuesto y Costos",
+        "Tabla de Actividades",
+        "Riesgo PERT",
     ]
 )
 
 
-# --------------------------------------------------------------- 3. Resultados
-with tab_resultados:
+# ------------------------------------------------------- 1. Planificacion / Copiloto
+with tab_copiloto:
+    if st.session_state.get("modo_manual"):
+        col_form, col_estado = st.columns([1.85, 1], gap="large")
+        with col_form:
+            seccion(
+                "Planificacion manual PERT",
+                "Ingresa actividades una por una con sus predecesoras y tiempos (a, m, b). "
+                "Luego explora la red, holguras, riesgo y costos en las pestanas superiores.",
+            )
+            componentes.formulario_actividad_manual(proyecto, key_prefix="inicio_manual")
+            if proyecto.actividades:
+                st.divider()
+                seccion("Actividades registradas", "Edita o elimina filas en Tabla de Actividades.")
+                resumen_manual = pd.DataFrame(
+                    [
+                        {
+                            "ID": a.id,
+                            "Actividad": a.nombre,
+                            "Predecesoras": ", ".join(a.predecesoras) or "-",
+                            "a": a.optimista,
+                            "m": a.probable,
+                            "b": a.pesimista,
+                            "te": round(a.te, 2),
+                            "Varianza": round(a.varianza, 4),
+                        }
+                        for a in proyecto.actividades.values()
+                    ]
+                )
+                st.dataframe(resumen_manual, width="stretch", hide_index=True)
+        with col_estado:
+            seccion("Estado y accesos")
+            if cpm:
+                st.metric("Duracion esperada PERT", f"{cpm['duracion']:.2f} dias")
+                st.metric("Desviacion estandar (sigma)", f"{cpm['sigma']:.2f} dias")
+                st.caption(
+                    f"Ruta critica: {' -> '.join(cpm['ruta_critica'])}"
+                )
+            elif not proyecto.actividades:
+                st.markdown(
+                    '<div class="ec-card">'
+                    '<div class="ec-card-titulo">Modo manual PERT</div>'
+                    "<p>Ideal para armar redes desde cero (actividades A, B, C...) o ejercicios "
+                    "de Investigacion de Operaciones sin depender de la IA.</p>"
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+                if st.button("Cargar ejemplo PERT basico (A-E)", width="stretch", key="pert_basico_inicio"):
+                    componentes.nuevo_proyecto_sesion(proyecto_pert_basico(), reiniciar_chat=True)
+                    st.rerun()
+            else:
+                componentes.mostrar_problemas(problemas)
+
+            if proyecto.actividades and st.button(
+                "Vaciar actividades", width="stretch", key="vaciar_manual"
+            ):
+                componentes.nuevo_proyecto_sesion(
+                    Proyecto(nombre=proyecto.nombre, escenario=dict(proyecto.escenario)),
+                    reiniciar_chat=True,
+                )
+                st.rerun()
+
+            if st.button("Cambiar a Copiloto IA", width="stretch", key="ir_ia"):
+                st.session_state["modo_manual"] = False
+                st.rerun()
+    else:
+        if st.session_state.pop("plan_aprobado_exito", False):
+            st.success(
+                "Plan aprobado e incorporado con exito. Tus actividades y tramites ya estan en el sistema. "
+                "Pasa a las pestañas superiores: Cronograma y Red, Presupuesto y Costos, o Tabla de Actividades."
+            )
+
+        col_chat, col_apoyo = st.columns([1.85, 1], gap="large")
+        with col_chat:
+            componentes.panel_copiloto(
+                proyecto, incluir_opcionales=escenario.get("empleados", 0) > 0
+            )
+        with col_apoyo:
+            seccion("Flujo y estado del proyecto")
+            if not proyecto.actividades:
+                st.markdown(
+                    '<div class="ec-card">'
+                    '<div class="ec-card-titulo">Como funciona</div>'
+                    '<div class="ec-paso"><span class="ec-paso-num">1</span>'
+                    "<span><strong>Describe tu proyecto</strong> en el copiloto o elige un sector de inicio.</span></div>"
+                    '<div class="ec-paso"><span class="ec-paso-num">2</span>'
+                    "<span><strong>Revisa y aprueba</strong> las actividades, tiempos PERT y tramites del Ecuador.</span></div>"
+                    '<div class="ec-paso"><span class="ec-paso-num">3</span>'
+                    "<span><strong>Evalua resultados</strong> en Cronograma, Presupuesto y Riesgo PERT, y exporta a Excel/PDF.</span></div>"
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                tramites = sum(1 for a in proyecto.actividades.values() if a.tipo == "tramite")
+                st.markdown(f"**{len(proyecto.actividades)} actividades** · {tramites} tramites publicos")
+
+                etiquetas = copiloto_ia.detectar_etiquetas(
+                    f"{proyecto.nombre} {proyecto.descripcion}"
+                )
+                if escenario.get("tipo_personeria") in ("sas", "compania"):
+                    etiquetas.append("persona_juridica")
+                faltantes = tramites_obligatorios_faltantes(proyecto, etiquetas, BASE_ECUADOR)
+                if faltantes:
+                    with st.expander(f"Tramites obligatorios sugeridos ({len(faltantes)})"):
+                        for tramite in faltantes:
+                            st.markdown(
+                                f"- **{escapar(tramite['nombre'])}** · {escapar(tramite['entidad'])}"
+                            )
+                else:
+                    st.caption("No hay tramites obligatorios pendientes para este perfil de proyecto.")
+
+            if st.button(
+                "Armar plan base con el catalogo",
+                width="stretch",
+                help="Genera actividades privadas y tramites aplicables segun la descripcion y escenario actual.",
+            ):
+                with st.spinner("Ensamblando actividades y tramites..."):
+                    plan = copiloto_ia.plan_local(
+                        proyecto.descripcion or proyecto.nombre,
+                        escenario,
+                        BASE_ECUADOR,
+                        incluir_opcionales=escenario.get("empleados", 0) > 0,
+                    )
+                    st.session_state["plan_pendiente"] = plan["proyecto"] | {
+                        "modo": "local",
+                        "proveedor": "local",
+                    }
+                st.rerun()
+
+            if st.button("Planificar manualmente (PERT)", width="stretch", key="ir_manual_panel"):
+                st.session_state["modo_manual"] = True
+                st.rerun()
+
+            if not proyecto.actividades:
+                if st.button("Explorar proyecto de ejemplo", width="stretch", key="demo_inicio"):
+                    st.session_state["modo_manual"] = False
+                    componentes.nuevo_proyecto_sesion(proyecto_demo(), reiniciar_chat=True)
+                    st.session_state["proyecto_cargado_msg"] = (
+                        "Proyecto de ejemplo cargado (34 actividades). Revisa las pestanas "
+                        "Cronograma y Red, Presupuesto y Costos, Tabla de Actividades y Riesgo PERT."
+                    )
+                    st.rerun()
+
+        plan_pendiente = st.session_state.get("plan_pendiente")
+        if plan_pendiente:
+            st.divider()
+            componentes.vista_aprobacion(plan_pendiente, proyecto)
+
+
+def _estado_sin_actividades(mensaje: str, clave_boton: str) -> None:
+    st.info(mensaje)
+    if st.button("Cargar proyecto de ejemplo", key=clave_boton):
+        st.session_state["modo_manual"] = False
+        componentes.nuevo_proyecto_sesion(proyecto_demo(), reiniciar_chat=True)
+        st.rerun()
+
+
+# ------------------------------------------------------- 2. Cronograma y Red
+with tab_cronograma:
     if not proyecto.actividades:
-        st.info("Agrega actividades o usa el copiloto para empezar.")
+        _estado_sin_actividades("Agrega actividades o usa el copiloto para empezar.", "demo_crono")
     elif error_calculo:
         st.error(f"No se puede calcular: {escapar(error_calculo)}")
     elif cpm is None:
-        st.warning("Corrige los errores de la pestana Actividades para ver el cronograma.")
+        st.warning("Corrige los errores de la pestaña Tabla de Actividades para ver el cronograma.")
     else:
         holguras = estadisticas_holgura(cpm)
         c1, c2, c3, c4 = st.columns(4)
@@ -351,104 +482,10 @@ with tab_resultados:
         )
 
 
-# ------------------------------------------- 4. Probabilidad y simulacion
-with tab_probabilidad:
+# ------------------------------------------------------- 3. Presupuesto y Costos
+with tab_presupuesto:
     if not proyecto.actividades:
-        st.info("Primero define las actividades del proyecto.")
-    elif cpm is None:
-        st.warning("El cronograma tiene errores; corrigelos antes de estimar probabilidades.")
-    else:
-        seccion(
-            "Probabilidad de cumplir el plazo",
-            "P(T <= plazo) con la aproximacion normal sobre la ruta critica.",
-        )
-        col_plazo, col_res = st.columns([1, 1.7], gap="large")
-        with col_plazo:
-            plazo = st.number_input(
-                "Plazo objetivo (dias laborables)",
-                min_value=1.0,
-                max_value=max(3650.0, cpm["duracion"] * 5),
-                value=float(round(cpm["duracion"])),
-                step=1.0,
-            )
-            resultado = probabilidad_exito(cpm, plazo)
-        with col_res:
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Valor Z", f"{resultado['z']:.2f}")
-            c2.metric("Probabilidad", f"{resultado['probabilidad'] * 100:.1f}%")
-            c3.metric("Holgura vs plazo", f"{resultado['holgura_plazo']:.1f} d")
-            if resultado["probabilidad"] >= 0.8:
-                st.success("El plazo es alcanzable con margen razonable (80% o mas).")
-            elif resultado["probabilidad"] >= 0.5:
-                st.warning("Plazo ajustado: la probabilidad esta entre 50% y 80%.")
-            else:
-                st.error("Plazo poco viable: la probabilidad es menor al 50%.")
-
-        st.plotly_chart(
-            graficos.campana_gauss(cpm, plazo, resultado["probabilidad"]),
-            width="stretch",
-        )
-
-        with st.expander("Supuestos estadisticos del modelo PERT"):
-            st.markdown(
-                f"- Las duraciones son variables aleatorias independientes con media "
-                f"`te = (a + 4m + b) / 6` y varianza `((b - a) / 6)^2`.\n"
-                f"- La duracion del proyecto se aproxima por la ruta critica "
-                f"(`{cpm['duracion']:.2f}` dias) y su varianza es la suma de las varianzas "
-                f"de esa ruta (`{cpm['varianza']:.2f}`), no la de todas las actividades criticas.\n"
-                f"- Por el teorema central del limite, la suma se aproxima a una normal: "
-                f"`Z = (plazo - Te) / sigma`, con `sigma = {cpm['sigma']:.2f}` dias.\n"
-                "- La aproximacion pierde precision si hay rutas casi criticas en paralelo o "
-                "correlacion entre actividades; en esos casos conviene una simulacion Monte Carlo."
-            )
-
-        st.divider()
-        seccion("Simulador de aceleracion")
-        col_obj, col_aco = st.columns([1, 2], gap="large")
-        reduccion = max(cpm["duracion"] - plazo, 0.0)
-        with col_obj:
-            objetivo = st.slider("Probabilidad objetivo", 0.5, 0.99, 0.80, 0.01)
-            plazo_necesario = plazo_para_probabilidad(cpm, objetivo)
-            st.metric(f"Plazo para {objetivo * 100:.0f}%", f"{plazo_necesario:.1f} dias")
-            if reduccion > 0:
-                st.write(f"Necesitas recortar **{reduccion:.1f} dias** respecto del tiempo esperado.")
-            else:
-                st.write("El plazo declarado ya supera el tiempo esperado.")
-        with col_aco:
-            if reduccion > 0:
-                sugerencias = sugerencias_aceleracion(cpm, reduccion)
-                st.markdown("**Actividades criticas donde conviene intervenir**")
-                for sugerencia in sugerencias:
-                    st.info(sugerencia["mensaje"])
-                if st.button("Simular aceleracion y recalcular", width="stretch"):
-                    reducciones = {s["id"]: s["recorte_dias"] for s in sugerencias}
-                    simulado = simular_reduccion(proyecto, reducciones)
-                    cpm_sim = calcular_cpm(simulado)
-                    nueva = probabilidad_exito(cpm_sim, plazo)
-                    c1, c2, c3 = st.columns(3)
-                    c1.metric(
-                        "Nueva duracion",
-                        f"{cpm_sim['duracion']:.1f} d",
-                        delta=f"{cpm_sim['duracion'] - cpm['duracion']:.1f}",
-                    )
-                    c2.metric(
-                        "Nueva probabilidad",
-                        f"{nueva['probabilidad'] * 100:.1f}%",
-                        delta=f"{(nueva['probabilidad'] - resultado['probabilidad']) * 100:.1f} pts",
-                    )
-                    c3.metric("Nuevo Z", f"{nueva['z']:.2f}")
-                    st.caption(
-                        "La simulacion acorta el tiempo esperado de cada actividad, conserva la "
-                        "forma PERT y recalcula todo el grafo. No modifica el proyecto guardado."
-                    )
-            else:
-                st.success("No hace falta acelerar: el plazo es mayor que la duracion esperada.")
-
-
-# ----------------------------------------------- 5. Costos y exportacion
-with tab_costos:
-    if not proyecto.actividades:
-        st.info("Primero define las actividades del proyecto.")
+        _estado_sin_actividades("Primero define las actividades del proyecto.", "demo_presup")
     elif cpm is None:
         st.warning("El cronograma tiene errores; corrigelos antes de presupuestar.")
     else:
@@ -468,11 +505,17 @@ with tab_costos:
             help=f"{costos['admin_pct']:.1f}% sobre costos directos privados.",
         )
         c5.metric("Tramites y tasas", f"USD {costos['tramites']:,.2f}")
-        c6.metric("IVA", f"USD {costos['iva']:,.2f}")
+        c6.metric(
+            "IVA (15%)",
+            f"USD {costos['iva']:,.2f}",
+            help=f"Base gravada USD {costos.get('base_iva', 0.0):,.2f} (excluye nomina y tasas publicas).",
+        )
         st.metric("Total del proyecto", f"USD {costos['total']:,.2f}")
         st.caption(
-            f"Factor de costo empleador aplicado: {proyecto.factor_cargas(PARAMETROS):.4f} "
-            "(aporte patronal, IECE/SECAP, fondos de reserva, decimos y vacaciones)."
+            f"Cargas laborales proporcionales: {proyecto.factor_cargas(PARAMETROS):.4f} "
+            "(IESS patronal, IECE/SECAP, fondos de reserva, 13ro y vacaciones) + "
+            f"14to sueldo fijo USD {costos.get('decimo_cuarto_diario', 0.0):.2f}/dia por trabajador. "
+            f"Base gravada de IVA: USD {costos.get('base_iva', 0.0):,.2f} (excluye nomina y tasas)."
         )
 
         info_canton = resumen_canton(escenario.get("canton"), PARAMETROS)
@@ -592,7 +635,7 @@ with tab_costos:
                 st.download_button(
                     "Descargar Excel (presupuesto + CPM)",
                     data=excel,
-                    file_name="informe_proyecto.xlsx",
+                    file_name=sanitizar_nombre_archivo(proyecto.nombre, extension=".xlsx"),
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     width="stretch",
                 )
@@ -610,7 +653,7 @@ with tab_costos:
                 st.download_button(
                     "Descargar PDF ejecutivo",
                     data=pdf,
-                    file_name="informe_proyecto.pdf",
+                    file_name=sanitizar_nombre_archivo(proyecto.nombre, extension=".pdf"),
                     mime="application/pdf",
                     width="stretch",
                 )
@@ -625,3 +668,139 @@ with tab_costos:
                     st.markdown(f"- {escapar(problema.mensaje)}")
         else:
             st.caption("El informe incluye la validacion del proyecto y las fuentes normativas.")
+
+
+# ------------------------------------------------------- 4. Tabla de Actividades y Ley
+with tab_tabla:
+    with st.expander("Agregar actividad manual (PERT)", expanded=not proyecto.actividades):
+        componentes.formulario_actividad_manual(proyecto, key_prefix="tabla_manual")
+
+    proyecto_editado = componentes.tabla_editable(proyecto)
+    if proyecto_editado.to_dict() != proyecto.to_dict():
+        st.session_state["proyecto"] = proyecto_editado
+        st.rerun()
+
+    componentes.panel_catalogo(proyecto)
+
+    st.divider()
+    componentes.mostrar_problemas(problemas)
+
+    huerfanas = proyecto.dependencias_huerfanas()
+    if huerfanas:
+        total = sum(len(v) for v in huerfanas.values())
+        with st.expander(f"Dependencias conservadas sin destino ({total})", expanded=True):
+            for ida, faltantes in huerfanas.items():
+                st.markdown(
+                    f'<div class="ec-item"><strong>{escapar(ida)}</strong> -> '
+                    f'{escapar(", ".join(faltantes))}</div>',
+                    unsafe_allow_html=True,
+                )
+            st.caption(
+                "No se eliminan automaticamente. Corrige el ID en la tabla o borra la "
+                "referencia cuando estes seguro de que ya no aplica."
+            )
+
+    col_a, col_b = st.columns([1, 2])
+    with col_a:
+        if st.button("Recalcular", type="primary", width="stretch"):
+            st.rerun()
+    with col_b:
+        st.caption(
+            "Tiempo esperado PERT te = (a + 4m + b) / 6 y varianza (b - a)^2 / 36. "
+            "El cronograma se actualiza automaticamente al editar la tabla."
+        )
+
+
+# ------------------------------------------------------- 5. Riesgo PERT
+with tab_probabilidad:
+    if not proyecto.actividades:
+        _estado_sin_actividades("Primero define las actividades del proyecto.", "demo_riesgo")
+    elif cpm is None:
+        st.warning("El cronograma tiene errores; corrigelos antes de estimar probabilidades.")
+    else:
+        seccion(
+            "Probabilidad de cumplir el plazo",
+            "P(T <= plazo) con la aproximacion normal sobre la ruta critica.",
+        )
+        col_plazo, col_res = st.columns([1, 1.7], gap="large")
+        with col_plazo:
+            duracion_redondeada = float(round(cpm["duracion"]))
+            plazo = st.number_input(
+                "Plazo objetivo (dias laborables)",
+                min_value=0.0,
+                max_value=max(3650.0, duracion_redondeada * 5, 10.0),
+                value=max(0.0, duracion_redondeada),
+                step=1.0,
+            )
+            resultado = probabilidad_exito(cpm, plazo)
+        with col_res:
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Valor Z", f"{resultado['z']:.2f}")
+            c2.metric("Probabilidad", f"{resultado['probabilidad'] * 100:.1f}%")
+            c3.metric("Holgura vs plazo", f"{resultado['holgura_plazo']:.1f} d")
+            if resultado["probabilidad"] >= 0.8:
+                st.success("El plazo es alcanzable con margen razonable (80% o mas).")
+            elif resultado["probabilidad"] >= 0.5:
+                st.warning("Plazo ajustado: la probabilidad esta entre 50% y 80%.")
+            else:
+                st.error("Plazo poco viable: la probabilidad es menor al 50%.")
+
+        st.plotly_chart(
+            graficos.campana_gauss(cpm, plazo, resultado["probabilidad"]),
+            width="stretch",
+        )
+
+        with st.expander("Supuestos estadisticos del modelo PERT"):
+            st.markdown(
+                f"- Las duraciones son variables aleatorias independientes con media "
+                f"`te = (a + 4m + b) / 6` y varianza `((b - a) / 6)^2`.\n"
+                f"- La duracion del proyecto se aproxima por la ruta critica "
+                f"(`{cpm['duracion']:.2f}` dias) y su varianza es la suma de las varianzas "
+                f"de esa ruta (`{cpm['varianza']:.2f}`), no la de todas las actividades criticas.\n"
+                f"- Por el teorema central del limite, la suma se aproxima a una normal: "
+                f"`Z = (plazo - Te) / sigma`, con `sigma = {cpm['sigma']:.2f}` dias.\n"
+                "- La aproximacion pierde precision si hay rutas casi criticas en paralelo o "
+                "correlacion entre actividades; en esos casos conviene una simulacion Monte Carlo."
+            )
+
+        st.divider()
+        seccion("Simulador de aceleracion")
+        col_obj, col_aco = st.columns([1, 2], gap="large")
+        reduccion = max(cpm["duracion"] - plazo, 0.0)
+        with col_obj:
+            objetivo = st.slider("Probabilidad objetivo", 0.5, 0.99, 0.80, 0.01)
+            plazo_necesario = plazo_para_probabilidad(cpm, objetivo)
+            st.metric(f"Plazo para {objetivo * 100:.0f}%", f"{plazo_necesario:.1f} dias")
+            if reduccion > 0:
+                st.write(f"Necesitas recortar **{reduccion:.1f} dias** respecto del tiempo esperado.")
+            else:
+                st.write("El plazo declarado ya supera el tiempo esperado.")
+        with col_aco:
+            if reduccion > 0:
+                sugerencias = sugerencias_aceleracion(cpm, reduccion)
+                st.markdown("**Actividades criticas donde conviene intervenir**")
+                for sugerencia in sugerencias:
+                    st.info(sugerencia["mensaje"])
+                if st.button("Simular aceleracion y recalcular", width="stretch"):
+                    reducciones = {s["id"]: s["recorte_dias"] for s in sugerencias}
+                    simulado = simular_reduccion(proyecto, reducciones)
+                    cpm_sim = calcular_cpm(simulado)
+                    nueva = probabilidad_exito(cpm_sim, plazo)
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric(
+                        "Nueva duracion",
+                        f"{cpm_sim['duracion']:.1f} d",
+                        delta=f"{cpm_sim['duracion'] - cpm['duracion']:.1f}",
+                    )
+                    c2.metric(
+                        "Nueva probabilidad",
+                        f"{nueva['probabilidad'] * 100:.1f}%",
+                        delta=f"{(nueva['probabilidad'] - resultado['probabilidad']) * 100:.1f} pts",
+                    )
+                    c3.metric("Nuevo Z", f"{nueva['z']:.2f}")
+                    st.caption(
+                        "La simulacion acorta el tiempo esperado de cada actividad, conserva la "
+                        "forma PERT y recalcula todo el grafo. No modifica el proyecto guardado."
+                    )
+            else:
+                st.success("No hace falta acelerar: el plazo es mayor que la duracion esperada.")

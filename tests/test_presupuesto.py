@@ -40,11 +40,25 @@ class TestPresupuesto(unittest.TestCase):
         componentes = self.parametros["costo_empleador"]["componentes"]
         esperado = 1 + sum(componentes.values()) / 100
         self.assertAlmostEqual(self.proyecto.factor_cargas(self.parametros), esperado, places=6)
-        self.assertAlmostEqual(esperado, 1.4131, places=4)
+        self.assertAlmostEqual(esperado, 1.3298, places=4)
+        esperado_14 = self.parametros["salario"]["sbu"] / 12.0 / self.parametros["salario"]["dias_mes"]
+        self.assertAlmostEqual(self.proyecto.decimo_cuarto_diario(self.parametros), esperado_14, places=4)
 
     def test_mano_de_obra_cargada(self) -> None:
-        esperado = 2 * 30 * 1.4131 * 5
+        decimo_14 = self.parametros["salario"]["sbu"] / 12.0 / self.parametros["salario"]["dias_mes"]
+        esperado = 2 * (30 * 1.3298 + decimo_14) * 5
         self.assertAlmostEqual(self.costos["mano_obra_incluida"], round(esperado, 2), places=2)
+
+    def test_decimo_cuarto_es_fijo_para_sueldos_altos(self) -> None:
+        alto = Proyecto(escenario={"aplica_iva": False})
+        alto.agregar(
+            Actividad("a", "Ingeniero", tipo="privada", optimista=10, probable=10, pesimista=10,
+                      trabajadores=1, costo_mo_diario=100.0)
+        )
+        costos_alto = alto.resumen_costos(self.parametros)
+        decimo_14 = self.parametros["salario"]["sbu"] / 12.0 / self.parametros["salario"]["dias_mes"]
+        esperado = (100.0 * 1.3298 + decimo_14) * 10
+        self.assertAlmostEqual(costos_alto["mano_obra_incluida"], round(esperado, 2), places=2)
 
     def test_total_sin_duplicaciones(self) -> None:
         suma_partidas = (
@@ -67,13 +81,28 @@ class TestPresupuesto(unittest.TestCase):
         self.assertAlmostEqual(self.costos["administrativos"], round(base_admin * 0.05, 2), places=2)
         self.assertAlmostEqual(self.costos["privada"], round(base_admin + self.costos["administrativos"], 2), places=2)
 
-    def test_iva_no_grava_tramites(self) -> None:
-        self.assertAlmostEqual(self.costos["iva"], round(self.costos["privada"] * 0.15, 2), places=2)
+    def test_iva_excluye_nomina_y_tramites(self) -> None:
+        base_iva_esperada = round((1000.0 + 500.0) * 1.05, 2)
+        self.assertAlmostEqual(self.costos["base_iva"], base_iva_esperada, places=2)
+        self.assertAlmostEqual(self.costos["iva"], round(base_iva_esperada * 0.15, 2), places=2)
         self.assertAlmostEqual(
             self.costos["total"],
             round(self.costos["privada"] + self.costos["tramites"] + self.costos["iva"], 2),
             places=2,
         )
+
+    def test_iva_excluye_actividad_tarifa_cero(self) -> None:
+        proyecto = proyecto_con_costos()
+        proyecto.agregar(
+            Actividad(
+                id="exenta", nombre="Insumo agricola 0%", tipo="privada",
+                optimista=1, probable=1, pesimista=1, costo=400.0, grava_iva=False,
+            )
+        )
+        costos = proyecto.resumen_costos(self.parametros)
+        base_iva_esperada = round((1000.0 + 500.0) * 1.05, 2)
+        self.assertAlmostEqual(costos["base_iva"], base_iva_esperada, places=2)
+        self.assertAlmostEqual(costos["iva"], round(base_iva_esperada * 0.15, 2), places=2)
 
     def test_iva_desactivable(self) -> None:
         self.proyecto.escenario["aplica_iva"] = False

@@ -133,6 +133,7 @@ class TestSeguridadEntradas(unittest.TestCase):
     def test_nombre_de_archivo_saneado(self) -> None:
         self.assertEqual(sanitizar_nombre_archivo("../../etc/passwd"), "etc_passwd.json")
         self.assertEqual(sanitizar_nombre_archivo(""), "proyecto.json")
+        self.assertEqual(sanitizar_nombre_archivo("Mi Proyecto", extension=".xlsx"), "Mi_Proyecto.xlsx")
 
     def _datos_validos(self) -> dict:
         return {

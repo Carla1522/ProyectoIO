@@ -15,8 +15,6 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-CANTON_POR_DEFECTO = "Ambato"
-
 
 def lista_cantones(parametros: Dict[str, Any]) -> List[str]:
     """Cantones con tarifario declarado, en orden alfabetico."""
@@ -28,11 +26,6 @@ def datos_canton(canton: Optional[str], parametros: Dict[str, Any]) -> Optional[
     if not isinstance(canton, str) or not canton.strip():
         return None
     return (parametros.get("tasas_cantonales") or {}).get(canton.strip())
-
-
-def tarifas_disponibles(canton: Optional[str], parametros: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
-    datos = datos_canton(canton, parametros) or {}
-    return dict(datos.get("tarifas") or {})
 
 
 def resolver_tarifa(
