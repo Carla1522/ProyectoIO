@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import unicodedata
 from typing import Any, Dict, List, Optional
 
 from core.modelo import Actividad, Proyecto, cargar_base_ecuador, nuevo_id
@@ -34,6 +35,21 @@ def _leer_secretos() -> Dict[str, str]:
         "AI_PROVIDER": str(datos.get("AI_PROVIDER", "")),
         "AI_MODEL": str(datos.get("AI_MODEL", "")),
     }
+
+
+def _clave(proveedor: str) -> str:
+    """Lee la clave del proveedor desde ``st.secrets`` o variables de entorno."""
+    secretos = _leer_secretos()
+    if proveedor == "gemini":
+        return (
+            secretos.get("GEMINI_API_KEY")
+            or os.getenv("GEMINI_API_KEY")
+            or os.getenv("GOOGLE_API_KEY")
+            or ""
+        )
+    if proveedor == "openai":
+        return secretos.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY") or ""
+    return ""
 
 
 def configuracion() -> Dict[str, Any]:
@@ -117,7 +133,7 @@ def probar_conexion() -> Dict[str, Any]:
         if cfg["proveedor"] == "gemini":
             respuesta = requests.get(
                 f"https://generativelanguage.googleapis.com/v1beta/models/{cfg['modelo']}",
-                params={"key": cfg["gemini"]},
+                headers={"x-goog-api-key": cfg["gemini"]},
                 timeout=20,
             )
         else:
@@ -232,6 +248,9 @@ def _llamar_gemini(mensajes: List[Dict[str, str]], cfg: Dict[str, str]) -> str:
     import time
     import requests
 
+    # La clave viaja por cabecera, nunca por URL: un parámetro de consulta
+    # queda en logs, proxies y caches, y era visible en los errores de requests
+    # que la interfaz mostraba (V1).
     sistema = mensajes[0]["content"]
     historial = [
         {"role": "user" if m["role"] == "user" else "model", "parts": [{"text": m["content"]}]}
@@ -249,7 +268,7 @@ def _llamar_gemini(mensajes: List[Dict[str, str]], cfg: Dict[str, str]) -> str:
         try:
             respuesta = requests.post(
                 url,
-                params={"key": cfg["gemini"]},
+                headers={"x-goog-api-key": cfg["gemini"], "Content-Type": "application/json"},
                 json=payload,
                 timeout=90,
             )
@@ -304,11 +323,24 @@ ARQUETIPOS = [
 ]
 
 
+def _normalizar_para_busqueda(texto: str) -> str:
+    """Quita acentos y convierte a minusculas para búsquedas insensibles.
+
+    ``core/modelo._slug`` hace lo mismo, pero aquí se busca texto libre, no
+    identificadores: sin esto palabras con tilde fallaban (Bug 4).
+    """
+    normalizado = unicodedata.normalize("NFKD", texto)
+    normalizado = "".join(
+        caracter for caracter in normalizado if not unicodedata.combining(caracter)
+    )
+    return normalizado.lower()
+
+
 def detectar_etiquetas(descripcion: str) -> List[str]:
-    texto = descripcion.lower()
+    texto = _normalizar_para_busqueda(descripcion)
     etiquetas: List[str] = []
     for etiqueta, palabras in KEYWORDS.items():
-        if any(palabra in texto for palabra in palabras):
+        if any(_normalizar_para_busqueda(palabra) in texto for palabra in palabras):
             etiquetas.append(etiqueta)
     if "obra_civil" in etiquetas:
         etiquetas.extend(["local_comercial", "ambiente_bajo"])
@@ -523,6 +555,16 @@ def plan_local(
     base = base or cargar_base_ecuador()
     catalogo = {tramite["id"]: tramite for tramite in base["tramites"]}
     escenario = dict(escenario or {})
+
+    # Extraer datos numericos de la descripcion (Bug 6)
+    m2_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:m2|m²|metros\s*cuadrados)", descripcion, re.IGNORECASE)
+    if m2_match:
+        escenario["area_m2"] = float(m2_match.group(1))
+
+    emp_match = re.search(r"(\d+)\s*(?:empleados|trabajadores|personas|obreros)", descripcion, re.IGNORECASE)
+    if emp_match:
+        escenario["empleados"] = int(emp_match.group(1))
+
     etiquetas = detectar_etiquetas(descripcion)
     arquetipo = _arquetipo(etiquetas)
     if arquetipo in ("comercio", "alimentos", "obra_civil", "industria", "salud", "turismo"):
@@ -690,10 +732,13 @@ def aplicar_plan(datos: Dict[str, Any], proyecto_actual: Optional[Proyecto] = No
                     + "Supuesto tramite fuera del catalogo: se trata como actividad privada."
                 ).strip()
             else:
-                actividad.nivel = registro.get("nivel", "")
-                actividad.canton = registro.get("canton") or ""
-                actividad.entidad = registro.get("entidad", actividad.entidad)
-                actividad.grava_iva = False
+                act_cat = Actividad.desde_catalogo(registro, predecesoras=actividad.predecesoras)
+                act_cat.optimista, act_cat.probable, act_cat.pesimista = a, m, b
+                act_cat.nivel = registro.get("nivel", "")
+                act_cat.canton = registro.get("canton") or ""
+                act_cat.entidad = registro.get("entidad", act_cat.entidad)
+                act_cat.grava_iva = False
+                actividad = act_cat
         else:
             actividad.grava_iva = bool(bruto.get("grava_iva", True))
         if base_id in existentes:
@@ -800,7 +845,10 @@ def conversar(
                 "etiquetas": etiquetas,
                 "error": None,
             }
-        plan = plan_local(mensaje or texto_total, escenario, base, incluir_opcionales)
+        # Se pasa TODO el texto del usuario (no solo el último mensaje): el
+        # planificador local evaluaba solo el último turno y perdía el contexto
+        # de las respuestas anteriores (Bug 3).
+        plan = plan_local(texto_total, escenario, base, incluir_opcionales)
         plan["modo"] = "local"
         plan["mensaje"] = (
             "Modo local (sin clave de IA): use plantillas verificadas y el catalogo normativo. "
@@ -831,7 +879,12 @@ def conversar(
             f"{_clasificar_error(error)} Se uso el planificador local, no una respuesta "
             "de la IA. " + respaldo["mensaje"]
         )
-        respaldo["error"] = f"{type(error).__name__}: {str(error)[:200]}"
+        # V1: Sanitizar el mensaje de error para evitar fugas de claves o datos privados
+        msg_err = str(error)
+        for key in (cfg.get("gemini"), cfg.get("openai")):
+            if key and len(key) >= 6:
+                msg_err = msg_err.replace(key, "[REDACTED]")
+        respaldo["error"] = f"{type(error).__name__}: {msg_err[:200]}"
         return respaldo
 
     return {

@@ -19,7 +19,8 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from typing import Any, Dict, List
+import re
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 import streamlit as st
@@ -31,6 +32,7 @@ from core.modelo import (
     Proyecto,
     cargar_base_ecuador,
     cargar_parametros,
+    catalogo_por_id,
     nuevo_id,
 )
 from core.seguridad import (
@@ -540,8 +542,10 @@ def panel_copiloto(proyecto: Proyecto, incluir_opcionales: bool = False) -> None
 
 
 def capacidad_texto(valor: Any, maximo: int = 300) -> str:
-    """Recorta un texto tecnico antes de mostrarlo (no se inyecta como HTML)."""
+    """Recorta y sanitiza un texto tecnico antes de mostrarlo (evita fugar claves)."""
     texto = str(valor or "")
+    texto = re.sub(r"(AIza[0-9A-Za-z-_]{20,})", "[REDACTED_API_KEY]", texto)
+    texto = re.sub(r"(sk-[0-9A-Za-z-_]{20,})", "[REDACTED_API_KEY]", texto)
     return texto[:maximo] + ("..." if len(texto) > maximo else "")
 
 
@@ -602,13 +606,30 @@ def proyecto_desde_dataframe(original: Proyecto, tabla: pd.DataFrame) -> Proyect
     )
     mapa: Dict[str, str] = {}
     ids_por_fila: Dict[Any, str] = {}
+    lista_original = list(original.actividades.values())
+    cat = catalogo_por_id()
 
-    for indice, fila in tabla.iterrows():
+    ids_tabla = set(str(row.get("ID") or "").strip() for _, row in tabla.iterrows())
+
+    for pos, (indice, fila) in enumerate(tabla.iterrows()):
         nombre = str(fila.get("Actividad") or "").strip()
         if not nombre:
             continue
         id_original = str(fila.get("ID") or "").strip()
         existente = original.obtener(id_original) if id_original else None
+
+        # Si no se encontro por ID directo, verificar si fue renombrado desde la fila original (Bug 7)
+        if existente is None and pos < len(lista_original):
+            act_orig = lista_original[pos]
+            if act_orig.id not in ids_tabla:
+                existente = act_orig
+                if act_orig.id not in mapa:
+                    mapa[act_orig.id] = id_original
+
+        # Si sigue sin encontrarse, verificar si coincide con un tramite del catalogo (Bug 7)
+        if existente is None and id_original in cat:
+            existente = Actividad.desde_catalogo(cat[id_original])
+
         actividad = (
             Actividad.from_dict(existente.to_dict())
             if existente
@@ -618,7 +639,10 @@ def proyecto_desde_dataframe(original: Proyecto, tabla: pd.DataFrame) -> Proyect
             actividad.id = nuevo_id(nombre, nuevo.actividades.keys())
         else:
             actividad.id = id_original
-        mapa[id_original] = actividad.id
+
+        # Bug 5: Solo registrar en el mapa la primera aparicion del id_original
+        if id_original and id_original not in mapa:
+            mapa[id_original] = actividad.id
         ids_por_fila[indice] = actividad.id
 
         actividad.nombre = nombre
@@ -630,8 +654,12 @@ def proyecto_desde_dataframe(original: Proyecto, tabla: pd.DataFrame) -> Proyect
         actividad.optimista = _num(fila.get("a"))
         actividad.probable = _num(fila.get("m"))
         actividad.pesimista = _num(fila.get("b"))
-        actividad.costo = _num(fila.get("Costo USD"))
-        actividad.costo_equipos = _num(fila.get("Equipos USD"))
+        nuevo_costo = _num(fila.get("Costo USD"))
+        nuevo_equipos = _num(fila.get("Equipos USD"))
+        if existente and (actividad.costo != nuevo_costo or actividad.costo_equipos != nuevo_equipos):
+            actividad.costo_manual = True
+        actividad.costo = nuevo_costo
+        actividad.costo_equipos = nuevo_equipos
         iva_val = fila.get("IVA")
         if actividad.tipo == "tramite":
             actividad.grava_iva = False
@@ -780,6 +808,10 @@ def tabla_editable(proyecto: Proyecto) -> Proyecto:
         "dependencias y se conserva aunque no exista: el validador lo reporta.",
     )
     tabla = proyecto_a_dataframe(proyecto)
+    # Evitar StreamlitValueBelowMinError asegurando valores numericos no negativos (Bug 9)
+    for col in ("a", "m", "b", "Costo USD", "Equipos USD", "Trabajadores", "Costo MO/dia"):
+        if col in tabla.columns:
+            tabla[col] = tabla[col].apply(lambda x: max(float(x or 0.0), 0.0))
     editada = st.data_editor(
         tabla,
         num_rows="dynamic",

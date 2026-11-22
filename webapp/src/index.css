@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #27272a transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: #27272a;
+    border-radius: 3px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: #3f3f46;
+  }
+
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface-2 border border-surface-4 rounded-lg;
+  }
+  .card-hover {
+    @apply card transition-all duration-200 hover:border-accent/30 hover:shadow-lg hover:shadow-accent/5;
+  }
+  .btn-primary {
+    @apply px-4 py-2 bg-accent text-white rounded-lg font-medium text-sm
+           transition-all duration-200 hover:bg-accent-dim active:scale-[0.98]
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply px-4 py-2 bg-surface-3 text-text-secondary border border-surface-4 rounded-lg font-medium text-sm
+           transition-all duration-200 hover:bg-surface-4 hover:text-text-primary active:scale-[0.98];
+  }
+  .btn-ghost {
+    @apply px-3 py-1.5 text-text-secondary rounded-md text-sm
+           transition-all duration-150 hover:bg-surface-3 hover:text-text-primary;
+  }
+  .input-field {
+    @apply w-full px-3 py-2 bg-surface-1 border border-surface-4 rounded-lg text-sm text-text-primary
+           placeholder:text-text-muted focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20
+           transition-all duration-200;
+  }
+  .input-compact {
+    @apply px-2 py-1 bg-surface-1 border border-surface-4 rounded text-xs text-text-primary text-center font-mono
+           focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20 transition-all duration-200;
+  }
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-medium;
+  }
+  .badge-critical {
+    @apply badge bg-critical/15 text-critical-light;
+  }
+  .badge-success {
+    @apply badge bg-success/15 text-success-light;
+  }
+  .badge-warn {
+    @apply badge bg-warn/15 text-warn-light;
+  }
+  .badge-accent {
+    @apply badge bg-accent/15 text-accent-light;
+  }
+}

@@ -1,0 +1,140 @@
+El proyecto consolidado es un **Sistema Inteligente de Planificación y Presupuestación de Proyectos (CPM/PERT) con Asistencia de IA y Motor Normativo Ecuatoriano**.
+
+Aquí tienes el documento maestro de la idea general, estructurado exactamente como necesitas para defender el alcance técnico, legal y matemático del software.
+
+---
+
+## 1. Definición General del Sistema
+
+Es una plataforma universal de gestión de proyectos donde cualquier persona, ingeniero o emprendedor puede planificar **cualquier tipo de proyecto** (obras civiles, apertura de negocios, desarrollo de software, industria, eventos) obteniendo la **Ruta Crítica, el Diagrama de Gantt, la Probabilidad de Éxito (PERT) y el Flujo de Costos**.
+
+Lo que lo diferencia de un software tradicional (como MS Project) es que **conoce la realidad legal y económica del Ecuador**: combina un **Copiloto de IA** (que entrevista al usuario cuando no sabe por dónde empezar y desglosa sus tareas operativas) con una **Base de Datos Normativa Verificada** (que inyecta trámites reales, tasas municipales/estatales, salarios mínimos de ley y dependencias legales obligatorias sin inventar datos).
+
+---
+
+## 2. Arquitectura de 4 Componentes (Cómo funciona por dentro)
+
+Para garantizar que el software sea **100% universal** y a la vez **estrictamente apegado a los datos reales de Ecuador**, el sistema se divide en cuatro módulos conectados entre sí:
+
+| Módulo | Función Principal | De dónde salen los datos |
+| --- | --- | --- |
+| **1. Copiloto IA (Entrevistador)** | Ayuda al usuario a definir su proyecto haciéndole preguntas clave (ubicación, giro de negocio, tamaño, si tendrá empleados o local físico) y genera las actividades operativas privadas. | Modelo de lenguaje (API Gemini/OpenAI) guiado por un *System Prompt* de consultoría de proyectos. |
+| **2. Catálogo Normativo Ecuatoriano (`base_ecuador.json`)** | Inyecta en la tabla los trámites públicos reales, sus requisitos previos (predecesoras legales), tasas oficiales y tiempos de respuesta ($a, m, b$). | Fuentes oficiales verificadas de Ecuador (SRI, ARCSA, IESS, SENADI, MAATE, SERCOP y GAD Municipales). |
+| **3. Motor de Costos y Parámetros de Ley** | Calcula el presupuesto real del proyecto sumando tasas de trámites + costos operativos + mano de obra según la ley laboral ecuatoriana. | SBU vigente, tablas sectoriales de la Contraloría/MDT, IVA vigente y tarifarios municipales. |
+| **4. Motor Matemático y Gráfico (CPM/PERT)** | Ejecuta el ordenamiento topológico, pasada hacia adelante ($ES, EF$), pasada hacia atrás ($LS, LF$), holguras, Ruta Crítica, Gantt y distribución normal ($Z$). | Algoritmos propios en Python (`networkx`, `scipy`, `matplotlib` / `plotly`). |
+
+---
+
+## 3. Qué Normativas, Reglamentos y Costos Reales de Ecuador incluye
+
+Para que el proyecto tenga rigor técnico y legal real, tu base de datos (`base_ecuador.json`) estará alimentada con cinco bloques de normativas y costos vigentes en el país:
+
+### A. Bloque Tributario y Societario (Nivel Nacional)
+
+* **SRI (Servicio de Rentas Internas):** Inscripción o actualización de RUC (Persona Natural o Jurídica). *Costo: $0 | Tiempo: 1 día | Requisito previo: Contrato de arriendo o escritura/predio.*
+* **Superintendencia de Compañías (Supercias):** Constitución electrónica de sociedades (ej. S.A.S. - Sociedad por Acciones Simplificada). *Costo: $0 trámite electrónico (solo requiere firma electrónica de los accionistas) | Tiempo PERT: 2 / 4 / 8 días.*
+* **Firma Electrónica (BCE / Security Data / Uanataca):** Obligatoria para facturación electrónica y trámites estatales. *Costo real: ~$22 a $30 (archivo `.p12` por 1-2 años) | Tiempo: 1 día.*
+
+### B. Bloque Laboral y Mano de Obra (IESS y Ministerio del Trabajo)
+
+* **Costos de Personal Reales:** Cuando el usuario agrega una actividad que requiere trabajadores (ej. obreros, programadores), el sistema puede calcular el costo diario usando el **SBU (Salario Básico Unificado)** y los recargos de ley en Ecuador (Aporte patronal IESS del **11.15%**, proporcionales de Décimo Tercero, Décimo Cuarto y Fondos de Reserva).
+* **Trámites Obligatorios:** Registro Patronal en el IESS y Aviso de Entrada (*Costo: $0, plazo legal máximo de 15 días*), registro de contratos en el sistema **SUT** del Ministerio del Trabajo y aprobación de Reglamento de Higiene y Seguridad (si supera los 10 trabajadores).
+
+### C. Bloque Sectorial Técnico (Según el tipo de proyecto)
+
+* **Alimentos, Salud y Cosméticos — ARCSA (Resolución ARCSA-DE-2022-016-AKRG y reformas):**
+* *Permiso de Funcionamiento:* Para restaurantes, cafeterías, farmacias (exento de pago `$0` para microempresas y artesanales; tasas aplicables a medianas/grandes).
+* *Notificación Sanitaria:* Para productos procesados y empaquetados (tasas reales que van desde ~$104 para microempresas/artesanos hasta >$1,300 según categoría).
+
+
+* **Construcción y Ambiente — MAATE / Bomberos / NEC:**
+* Cumplimiento de la **Norma Ecuatoriana de la Construcción (NEC)** para estudios estructurales.
+* **SUIA (Sistema Único de Información Ambiental - MAATE):** Certificado Ambiental (*$0*, automático para bajo impacto), Registro Ambiental (*~$180* para impacto medio) o Licencia Ambiental.
+
+
+* **Software, Marcas e Invenciones — SENADI:**
+* Búsqueda fonética (*$16*), Registro de Marca Nacional (*$208*, o *$104* con descuento del 50% para PYMES/artesanos/universidades) y Registro de Derechos de Autor para código fuente de software (*$12*).
+
+
+
+### D. Bloque Cantonal / Municipal (Ordenanzas Locales: Ambato, Quito, Guayaquil)
+
+* **Caso Real Ambato (Ordenanzas del GADMA y Cuerpo de Bomberos de Ambato - CBA):**
+* **Certificado de Uso de Suelo (GADMA):** Especie valorada (*$2*) + carta de pago del impuesto predial.
+* **Línea de Fábrica y Aprobación de Planos (si es obra civil):** Tasas municipales por metro cuadrado de construcción según ordenanza del GADMA.
+* **Permiso de Funcionamiento de Bomberos (CBA):** Inspección física obligatoria de extintores, luces de emergencia y señalética. *Tasa real: calculada según categoría de riesgo y tamaño del local (ej. $15 a $80 para locales comerciales estándar).*
+* **Patente Municipal (GADMATIC):** Declaración sobre el capital de operación (tarifa mínima desde *$10* hasta el porcentaje sobre el patrimonio según la ordenanza vigente).
+* **Certificado Único de Habilitación (GADMA):** Trámite final que exige como **predecesoras matemáticas** tener aprobados el Uso de Suelo, el RUC, la Patente y el Permiso del CBA.
+
+
+
+---
+
+## 4. El Flujo Completo de Uso (Paso a Paso de principio a fin)
+
+Así es como un usuario vivirá la experiencia dentro de tu software:
+
+1. **Paso 1: Definición guiada por IA (o entrada manual)**
+* El usuario abre la aplicación. Si ya es experto, llena la tabla directamente.
+* Si no sabe cómo empezar, escribe en el chat del Copiloto: *"Quiero construir un galpón para fabricar muebles en Ambato"*.
+* La IA le hace **3 preguntas puntuales**: *1) ¿El terreno ya es tuyo o vas a arrendar? 2) ¿Cuántos metros cuadrados tendrá y cuántos empleados contratarás? 3) ¿Vas a vender con marca propia?*
+
+
+2. **Paso 2: Ensamblaje Automático de la Tabla**
+* Con las respuestas, el sistema arma la tabla mezclando:
+* **Tareas privadas** creadas por la IA (Limpieza de terreno, cimentación, estructura metálica, compra de maquinaria de carpintería).
+* **Trámites oficiales** extraídos de `base_ecuador.json` (Línea de fábrica GADMA, Aprobación de planos, RUC en SRI, Registro Ambiental MAATE, Permiso de Bomberos CBA, Patente GADMA, Registro Patronal IESS).
+
+
+* Todas las actividades aparecen con sus **predecesoras lógicas y legales conectadas**, sus tiempos ($a, m, b$) en días laborables y sus costos en dólares (con el link oficial de respaldo).
+
+
+3. **Paso 3: Edición Libre y Validación**
+* El usuario revisa la tabla. Puede cambiar cualquier duración, modificar costos, borrar filas o agregar actividades nuevas.
+* El validador interno verifica que no existan **ciclos infinitos** (ej. que A dependa de B y B de A) ni errores normativos (ej. intentar sacar la Patente Municipal antes de tener el RUC).
+
+
+4. **Paso 4: Ejecución del Motor CPM/PERT y Resultados**
+* Al presionar **"Calcular Proyecto"**, el programa genera:
+* **Resumen Ejecutivo:** Duración esperada total (ej. 42 días), Costo Total del Proyecto (separando *Inversión Privada* vs *Gasto en Trámites/Tasas*), y la secuencia de la **Ruta Crítica**.
+* **Tabla Matemática Completa:** $t_e$, Varianza ($\sigma^2$), $ES, EF, LS, LF$, Holgura Total y estado (Crítica / Con holgura).
+* **Diagrama de Red (Grafo):** Nodos conectados con la ruta crítica en rojo y distinción visual entre tareas privadas y trámites del Estado.
+* **Diagrama de Gantt y Flujo de Caja:** Cronograma de barras que muestra qué trámites se pueden ir haciendo en paralelo (aprovechando su holgura) mientras avanza la obra física, y cuánto dinero se necesita cada semana.
+* **Calculadora de Probabilidad PERT y Simulador "¿Qué pasa si?":** El usuario ingresa su fecha límite (ej. *"Necesito abrir en 38 días"*) y el sistema calcula el valor $Z$ y le dice: *"Tienes un 24.5% de probabilidad de lograrlo. Para subir al 80%, el Copiloto IA sugiere reducir la actividad crítica D (Estructura metálica) en 5 días contratando personal adicional"*.
+
+
+
+
+
+---
+
+## 5. Estructura Definitiva de Archivos del Proyecto
+
+Si lo programas en **Python + Streamlit** (la opción más rápida, moderna y fácil de conectar tanto con IA como con gráficas científicas), tu carpeta de código quedará así:
+
+```text
+ecuaproject_cpm_pert/
+│
+├── data/
+│   ├── base_ecuador.json       # Trámites reales (SRI, ARCSA, IESS, SENADI, MAATE, GADs) con fuentes
+│   └── parametros_ley.json     # SBU vigente, % aporte IESS, IVA, tasas base por cantón
+│
+├── core/
+│   ├── modelo.py               # Clase Actividad y Clase Proyecto
+│   ├── calculos_cpm_pert.py    # Orden topológico, Forward/Backward pass, Ruta Crítica, Z-score
+│   └── validador.py            # Detección de ciclos (DFS) y validación de reglas legales
+│
+├── services/
+│   ├── copiloto_ia.py          # Conexión con API de Gemini/OpenAI + Prompt entrevistador + RAG del JSON
+│   └── exportador.py           # Generación de reporte en PDF / Excel con presupuesto y ruta crítica
+│
+├── ui/
+│   ├── graficos.py             # Diagrama de Red (NetworkX/Graphviz), Gantt (Plotly) y Campana de Gauss
+│   └── componentes.py          # Chat lateral de IA, selector de bloques normativos y tabla editable
+│
+└── app.py                      # Archivo principal de Streamlit que une toda la aplicación
+
+```
+
+Esta estructura demuestra dominio de **Investigación Operativa** (CPM/PERT y estadística), **Ingeniería de Software** (arquitectura limpia, validación de grafos y base de datos desacoplada), **Inteligencia Artificial aplicada** (asistente guiado sin alucinación de datos) y **Legislación Ecuatoriana real**.
+

@@ -39,3 +39,8 @@ Thumbs.db
 .vscode/
 .idea/
 ~$*
+
+# Webapp (Node/Vite)
+node_modules/
+webapp/dist/
+*.tsbuildinfo

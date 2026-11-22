@@ -25,6 +25,15 @@ def _texto(valor: Any) -> str:
     return escape(str(valor or ""))
 
 
+def _celda_segura(valor: Any) -> Any:
+    """Evita inyeccion de formulas en Excel (= + - @)."""
+    if isinstance(valor, str):
+        val = valor.strip()
+        if val.startswith(("=", "+", "-", "@")):
+            return "'" + val
+    return valor
+
+
 def _catalogo() -> Dict[str, Any]:
     try:
         return cargar_base_ecuador()
@@ -135,8 +144,9 @@ def exportar_excel(
     )
     for fila in cpm["filas"]:
         hoja.append([
-            fila.get("codigo", ""), fila["id"], fila["nombre"], fila["tipo"], fila["entidad"],
-            fila["predecesoras"], fila["a"], fila["m"], fila["b"], fila["te"],
+            _celda_segura(fila.get("codigo", "")), _celda_segura(fila["id"]), _celda_segura(fila["nombre"]),
+            _celda_segura(fila["tipo"]), _celda_segura(fila["entidad"]),
+            _celda_segura(str(fila["predecesoras"])), fila["a"], fila["m"], fila["b"], fila["te"],
             fila["varianza"], fila["es"], fila["ef"], fila["ls"], fila["lf"],
             fila["holgura"], fila["holgura_libre"], "SI" if fila["critica"] else "NO",
             costos_por_id.get(fila["id"], {}).get("subtotal", 0.0),
@@ -159,8 +169,8 @@ def exportar_excel(
     for detalle in costos["detalle"]:
         fila_cpm = next((f for f in cpm["filas"] if f["id"] == detalle["id"]), {})
         hoja.append([
-            fila_cpm.get("codigo", ""), detalle["id"], detalle["nombre"],
-            fila_cpm.get("tipo", ""), detalle["directo"], detalle["equipos"],
+            _celda_segura(fila_cpm.get("codigo", "")), _celda_segura(detalle["id"]), _celda_segura(detalle["nombre"]),
+            _celda_segura(fila_cpm.get("tipo", "")), detalle["directo"], detalle["equipos"],
             detalle["mano_obra"], detalle["subtotal"],
         ])
     hoja.append([])
@@ -201,7 +211,7 @@ def exportar_excel(
     escribir_cabecera(hoja, ["Actividad", "Inicio", "Duracion", "Fin", "Critica"])
     for fila in cpm["filas"]:
         hoja.append([
-            f"{fila.get('codigo', '')} {fila['nombre'][:40]}",
+            _celda_segura(f"{fila.get('codigo', '')} {fila['nombre'][:40]}"),
             fila["es"], fila["te"], fila["ef"], "SI" if fila["critica"] else "NO",
         ])
     hoja.freeze_panes = "A2"
@@ -239,7 +249,7 @@ def exportar_excel(
         fila = next((f for f in cpm["filas"] if f["id"] == ida), None)
         if fila:
             hoja.append([
-                numero, fila.get("codigo", ""), fila["nombre"], fila["es"], fila["ef"],
+                numero, _celda_segura(fila.get("codigo", "")), _celda_segura(fila["nombre"]), fila["es"], fila["ef"],
                 fila["te"], costos_por_id.get(ida, {}).get("subtotal", 0.0),
             ])
     for indice, ancho in enumerate([5, 9, 45, 9, 9, 10, 12], start=1):
@@ -269,11 +279,11 @@ def exportar_excel(
         registro = catalogo.get(actividad.id, {})
         tarifa = tarifas.get(actividad.id, {})
         hoja.append([
-            actividad.nombre, actividad.entidad, actividad.nivel or actividad.categoria,
-            actividad.fuente_normativa, actividad.fuente_url,
-            actividad.costo_nota or actividad.costo,
-            tarifa.get("origen", registro.get("valor_tipo", "referencia")),
-            registro.get("verificado_en", ""),
+            _celda_segura(actividad.nombre), _celda_segura(actividad.entidad), _celda_segura(actividad.nivel or actividad.categoria),
+            _celda_segura(actividad.fuente_normativa), _celda_segura(actividad.fuente_url),
+            _celda_segura(str(actividad.costo_nota or actividad.costo)),
+            _celda_segura(tarifa.get("origen", registro.get("valor_tipo", "referencia"))),
+            _celda_segura(registro.get("verificado_en", "")),
         ])
     for indice, ancho in enumerate([42, 32, 18, 48, 42, 46, 18, 12], start=1):
         hoja.column_dimensions[get_column_letter(indice)].width = ancho
@@ -283,10 +293,10 @@ def exportar_excel(
     escribir_cabecera(hoja, ["Severidad", "Codigo", "Mensaje", "Actividad"])
     for problema in problemas or []:
         hoja.append([
-            getattr(problema, "nivel", ""),
-            getattr(problema, "codigo", ""),
-            getattr(problema, "mensaje", str(problema)),
-            getattr(problema, "actividad", "") or "",
+            _celda_segura(getattr(problema, "nivel", "")),
+            _celda_segura(getattr(problema, "codigo", "")),
+            _celda_segura(getattr(problema, "mensaje", str(problema))),
+            _celda_segura(getattr(problema, "actividad", "") or ""),
         ])
     for indice, ancho in enumerate([14, 28, 90, 26], start=1):
         hoja.column_dimensions[get_column_letter(indice)].width = ancho
