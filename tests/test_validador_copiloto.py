@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from core.modelo import Actividad, Proyecto, cargar_base_ecuador, cargar_parametros
 from core.validador import (
@@ -59,6 +60,29 @@ class TestValidador(unittest.TestCase):
         problemas = validar(proyecto, self.base, self.parametros)
         self.assertFalse([p for p in problemas if p.codigo == "regla_legal"])
 
+    def test_conexion_energia_condicional_obra_vs_local(self) -> None:
+        local = Proyecto()
+        local.agregar(Actividad("ruc", "RUC", tipo="tramite"))
+        local.agregar(Actividad("uso_suelo", "Uso de suelo", tipo="tramite", predecesoras=["ruc"]))
+        local.agregar(
+            Actividad("conexion_energia", "Conexion electrica", tipo="tramite", predecesoras=["uso_suelo"])
+        )
+        self.assertFalse([p for p in validar(local, self.base, self.parametros) if p.codigo == "regla_legal"])
+
+        obra = Proyecto()
+        obra.agregar(Actividad("ruc", "RUC", tipo="tramite"))
+        obra.agregar(Actividad("uso_suelo", "Uso de suelo", tipo="tramite", predecesoras=["ruc"]))
+        obra.agregar(Actividad("aprobacion_planos", "Planos", tipo="tramite", predecesoras=["uso_suelo"]))
+        obra.agregar(Actividad("linea_fabrica", "Linea", tipo="tramite", predecesoras=["aprobacion_planos"]))
+        obra.agregar(
+            Actividad("permiso_construccion", "Permiso", tipo="tramite", predecesoras=["aprobacion_planos", "linea_fabrica"])
+        )
+        obra.agregar(
+            Actividad("conexion_energia", "Conexion electrica", tipo="tramite", predecesoras=["uso_suelo"])
+        )
+        reglas = [p for p in validar(obra, self.base, self.parametros) if p.codigo == "regla_legal"]
+        self.assertTrue(any("Permiso" in p.mensaje and "construccion" in p.mensaje for p in reglas))
+
     def test_mano_de_obra_bajo_sbu(self) -> None:
         proyecto = Proyecto()
         proyecto.agregar(
@@ -113,7 +137,11 @@ class TestCopilotoLocal(unittest.TestCase):
     def test_planes_validos_para_tres_giros(self) -> None:
         casos = [
             "Quiero construir un galpon para fabricar muebles en Ambato",
+            "Quiero abrir un taller de carpinteria para fabricar muebles en Quito",
             "Quiero abrir un restaurante de comida tipica en Quito",
+            "Quiero abrir un consultorio medico o clinica privada en Quito",
+            "Quiero abrir un hostal turistico de 200 m2 en Ambato",
+            "Quiero iniciar un cultivo agricola de cacao en finca",
             "Quiero desarrollar una aplicacion web para gestionar clinicas",
         ]
         for descripcion in casos:
@@ -127,6 +155,54 @@ class TestCopilotoLocal(unittest.TestCase):
                     [p for p in problemas if p.nivel == ERROR],
                     msg=[p.mensaje for p in problemas if p.nivel == ERROR],
                 )
+
+    def test_reglas_personeria_y_rimpe_en_validador(self) -> None:
+        proyecto = Proyecto(
+            escenario={"tipo_personeria": "sas", "regimen_tributario": "rimpe_negocio_popular"}
+        )
+        proyecto.agregar(Actividad("ruc", "RUC", tipo="tramite"))
+        problemas = validar(proyecto, self.base, cargar_parametros())
+        codigos = {p.codigo for p in problemas}
+        self.assertIn("regimen_incompatible", codigos)
+        self.assertIn("personeria_sin_constitucion", codigos)
+
+        plan_sas = self._plan(
+            "Quiero abrir una cafeteria en Quito",
+            {"canton": "Quito", "tamano_empresa": "micro", "tipo_personeria": "sas", "regimen_tributario": "rimpe_emprendedor"},
+        )
+        proy_sas = copiloto_ia.aplicar_plan(plan_sas["proyecto"])
+        self.assertIn("constitucion_sociedad", proy_sas.actividades)
+        self.assertIn("nombramiento_representante", proy_sas.actividades)
+        self.assertIn("regimen_rimpe", proy_sas.actividades)
+        problemas_sas = validar(proy_sas, self.base, cargar_parametros())
+        self.assertFalse([p for p in problemas_sas if p.nivel == ERROR])
+
+        plan_agro = self._plan(
+            "Quiero iniciar un cultivo agricola en finca",
+            {"canton": "Ambato", "tamano_empresa": "micro", "regimen_tributario": "rimpe_emprendedor"},
+        )
+        proy_agro = copiloto_ia.aplicar_plan(plan_agro["proyecto"])
+        codigos_agro = {p.codigo for p in validar(proy_agro, self.base, cargar_parametros())}
+        self.assertIn("actividad_excluida_rimpe", codigos_agro)
+
+    def test_validacion_empleados_escenario(self) -> None:
+        proyecto = Proyecto(escenario={"empleados": 12})
+        proyecto.agregar(Actividad("a", "Obra", trabajadores=15, optimista=2, probable=2, pesimista=2))
+        codigos = {p.codigo for p in validar(proyecto, self.base, cargar_parametros())}
+        self.assertIn("empleados_sin_iess", codigos)
+        self.assertIn("empleados_sin_reglamento_higiene", codigos)
+        self.assertIn("trabajadores_sobre_escenario", codigos)
+
+    def test_aplicar_plan_conserva_area_de_barra_lateral(self) -> None:
+        actual = Proyecto(escenario={"canton": "Quito", "area_m2": 1000.0, "tipo_personeria": "sas"})
+        plan = {
+            "nombre": "Ferreteria",
+            "escenario": {"canton": "Quito", "area_m2": 0, "tipo_personeria": "persona_natural"},
+            "actividades": [{"id": "a", "nombre": "A", "optimista": 1, "probable": 1, "pesimista": 1}],
+        }
+        resultado = copiloto_ia.aplicar_plan(plan, proyecto_actual=actual)
+        self.assertEqual(resultado.escenario["area_m2"], 1000.0)
+        self.assertEqual(resultado.escenario["tipo_personeria"], "sas")
 
     def test_planes_solo_usan_tramites_del_catalogo(self) -> None:
         plan = self._plan("Quiero una panaderia con marca propia en Ambato")
@@ -170,10 +246,34 @@ class TestCopilotoLocal(unittest.TestCase):
         self.assertEqual(proyecto.obtener("a").predecesoras, ["no_existe"])
         self.assertEqual(proyecto.dependencias_huerfanas(), {"a": ["no_existe"]})
 
-    def test_conversacion_corta_pide_contexto(self) -> None:
+    @patch(
+        "services.copiloto_ia.configuracion",
+        return_value={"proveedor": "local", "modelo": "local", "gemini": "", "openai": "", "clave_configurada": False},
+    )
+    def test_conversacion_corta_pide_contexto(self, _mock_cfg) -> None:
         respuesta = copiloto_ia.conversar([], "Hola", {"canton": "Ambato"})
         self.assertFalse(respuesta["listo"])
         self.assertTrue(respuesta["preguntas"])
+
+    @patch.dict("os.environ", {}, clear=True)
+    @patch(
+        "services.copiloto_ia.configuracion",
+        return_value={
+            "proveedor": "gemini",
+            "modelo": "gemini-flash-latest",
+            "gemini": "secret_from_toml",
+            "openai": "",
+            "clave_configurada": True,
+        },
+    )
+    @patch(
+        "services.copiloto_ia._llamar_gemini",
+        return_value='{"mensaje":"OK","listo":false,"preguntas":["Cuantos m2?"],"supuestos":[],"proyecto":null}',
+    )
+    def test_conversar_usa_clave_de_secrets_sin_env(self, mock_gemini, _mock_cfg) -> None:
+        respuesta = copiloto_ia.conversar([], "Quiero abrir una ferreteria", {"canton": "Ambato"})
+        self.assertEqual(respuesta["modo"], "api")
+        mock_gemini.assert_called_once()
 
     def test_deteccion_de_etiquetas(self) -> None:
         etiquetas = copiloto_ia.detectar_etiquetas(

@@ -18,7 +18,10 @@
     "Ambiental",
     "Propiedad intelectual",
     "Servicios basicos",
-    "Construccion"
+    "Construccion",
+    "Turismo",
+    "Agropecuario",
+    "Industrial"
   ],
   "tramites": [
     {
@@ -176,7 +179,8 @@
         "Ingresos anuales dentro del limite del regimen"
       ],
       "aplica_a": [
-        "microempresa"
+        "microempresa",
+        "rimpe"
       ],
       "obligatorio": false,
       "verificar": true,
@@ -998,7 +1002,7 @@
       "canton": null,
       "descripcion": "Solicitud de medidor y conexion de energia, incluyendo revision de la instalacion interna.",
       "predecesoras": [
-        "permiso_construccion"
+        "uso_suelo"
       ],
       "optimista": 5,
       "probable": 15,
@@ -1007,8 +1011,8 @@
       "costo_nota": "Costo variable segun carga contratada y longitud de acometida.",
       "requisitos": [
         "Certificado de conformidad de instalacion electrica",
-        "Permiso de construccion",
-        "Predio con acceso"
+        "Uso de suelo o contrato de arriendo / escritura",
+        "Permiso de construccion (solo si es obra nueva)"
       ],
       "aplica_a": [
         "obra_civil",
@@ -1057,6 +1061,317 @@
       "fuente_tipo": "portal_institucional",
       "verificado_en": "2026-11-13",
       "fuente_detalle": "El enlace corresponde al portal institucional; el trámite no tiene costo directo de tasa o el valor es de mercado."
+    },
+    {
+      "id": "nombramiento_representante",
+      "nombre": "Inscripcion de nombramiento de representante legal",
+      "entidad": "Superintendencia de Companias / Registro Mercantil",
+      "categoria": "Societario",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Registro del nombramiento de representante legal (gerente general o presidente) tras constituir la compania.",
+      "predecesoras": [
+        "constitucion_sociedad"
+      ],
+      "optimista": 1,
+      "probable": 3,
+      "pesimista": 7,
+      "costo": 0.0,
+      "costo_nota": "Gratuito en linea para S.A.S. en Supercias; arancel en Registro Mercantil para Cia. Ltda. o S.A.",
+      "requisitos": [
+        "Constitucion de la compania",
+        "Acta o resolucion de designacion",
+        "Aceptacion del cargo y cedula"
+      ],
+      "aplica_a": [
+        "persona_juridica"
+      ],
+      "obligatorio": true,
+      "verificar": true,
+      "fuente_normativa": "Ley de Companias; Ley de Registro",
+      "fuente_url": "https://www.supercias.gob.ec/",
+      "valor_tipo": "estimacion",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-19",
+      "fuente_detalle": "El enlace corresponde al portal institucional. En S.A.S. no tiene costo directo; en Cia. Ltda./S.A. confirmar arancel del Registro Mercantil cantonal."
+    },
+    {
+      "id": "registro_turismo_mintur",
+      "nombre": "Registro de Turismo (SITURIN)",
+      "entidad": "Ministerio de Turismo (MINTUR)",
+      "categoria": "Turismo",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Inscripcion en el catastro turistico nacional para alojamiento, alimentos y bebidas turisticos, agencias de viajes u operacion turistica.",
+      "predecesoras": [
+        "ruc"
+      ],
+      "optimista": 1,
+      "probable": 3,
+      "pesimista": 8,
+      "costo": 0.0,
+      "costo_nota": "Tramite en linea gratuito en la plataforma SITURIN del MINTUR.",
+      "requisitos": [
+        "RUC o RIMPE activo con actividad turistica",
+        "Informacion tecnica y capacidad del establecimiento",
+        "Representacion legal (si es persona juridica)"
+      ],
+      "aplica_a": [
+        "turismo"
+      ],
+      "obligatorio": true,
+      "verificar": false,
+      "fuente_normativa": "Ley de Turismo; Reglamento General de Actividades Turisticas",
+      "fuente_url": "https://www.gob.ec/",
+      "valor_tipo": "oficial",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-19",
+      "fuente_detalle": "El enlace corresponde al portal unico de tramites gob.ec; la emision del Registro de Turismo en SITURIN no tiene costo directo de tasa."
+    },
+    {
+      "id": "luaf_turismo",
+      "nombre": "Licencia Unica Anual de Funcionamiento (LUAF)",
+      "entidad": "GAD Municipal - Direccion de Turismo",
+      "categoria": "Turismo",
+      "nivel": "cantonal",
+      "canton": null,
+      "descripcion": "Autorizacion anual municipal obligatoria para establecimientos turisticos tras obtener el Registro de Turismo.",
+      "predecesoras": [
+        "registro_turismo_mintur",
+        "uso_suelo",
+        "patente_municipal",
+        "bomberos"
+      ],
+      "optimista": 2,
+      "probable": 5,
+      "pesimista": 12,
+      "costo": 80.0,
+      "costo_nota": "Tasa anual fijada por cada GAD Municipal segun categoria y capacidad del establecimiento.",
+      "requisitos": [
+        "Certificado de Registro Turistico (MINTUR)",
+        "Patente municipal y uso de suelo",
+        "Permiso del Cuerpo de Bomberos"
+      ],
+      "aplica_a": [
+        "turismo"
+      ],
+      "obligatorio": true,
+      "verificar": true,
+      "fuente_normativa": "Ley de Turismo; Ordenanza Municipal de la LUAF",
+      "fuente_url": "https://www.gob.ec/",
+      "valor_tipo": "estimacion",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-19",
+      "fuente_detalle": "El valor depende del tarifario municipal vigente en cada canton; confirmar ordenanza de la LUAF antes de presupuestar."
+    },
+    {
+      "id": "rues_msp",
+      "nombre": "Asignacion de Unicodigo RUES (Establecimiento de Salud)",
+      "entidad": "Ministerio de Salud Publica (MSP)",
+      "categoria": "Sanitario",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Registro Unico de Establecimientos de Salud previo a la solicitud del permiso de funcionamiento en ACESS.",
+      "predecesoras": [
+        "ruc"
+      ],
+      "optimista": 1,
+      "probable": 3,
+      "pesimista": 7,
+      "costo": 0.0,
+      "costo_nota": "Tramite administrativo en linea sin tasa estatal directa.",
+      "requisitos": [
+        "RUC con actividad de salud",
+        "Datos del establecimiento y tipologia",
+        "Responsable tecnico registrado"
+      ],
+      "aplica_a": [
+        "salud"
+      ],
+      "obligatorio": true,
+      "verificar": true,
+      "fuente_normativa": "Ley Organica de Salud; Acuerdo Ministerial RUES",
+      "fuente_url": "https://www.salud.gob.ec/",
+      "valor_tipo": "estimacion",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-19",
+      "fuente_detalle": "El enlace corresponde al portal institucional del MSP; confirmar requisitos vigentes segun tipologia del establecimiento."
+    },
+    {
+      "id": "permiso_acess",
+      "nombre": "Permiso de funcionamiento de establecimiento de salud",
+      "entidad": "Agencia de Aseguramiento de la Calidad de los Servicios de Salud (ACESS)",
+      "categoria": "Sanitario",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Autorizacion sanitaria e inspeccion in situ para consultorios, clinicas, laboratorios y centros de salud.",
+      "predecesoras": [
+        "ruc",
+        "rues_msp",
+        "patente_municipal",
+        "bomberos"
+      ],
+      "optimista": 5,
+      "probable": 12,
+      "pesimista": 25,
+      "costo": 140.0,
+      "costos_por_tamano": {
+        "micro": 90.0,
+        "pequena": 180.0,
+        "mediana": 350.0,
+        "grande": 600.0
+      },
+      "costo_nota": "Tasa variable segun tipologia y nivel de complejidad del establecimiento privado de salud (tarifario ACESS).",
+      "requisitos": [
+        "Unicodigo RUES",
+        "Titulos profesionales registrados ante SENESCYT y MSP",
+        "Cartera de servicios y responsable tecnico",
+        "Inspeccion in situ de infraestructura y equipamiento"
+      ],
+      "aplica_a": [
+        "salud"
+      ],
+      "obligatorio": true,
+      "verificar": true,
+      "fuente_normativa": "Ley Organica de Salud; Reglamento para Permiso de Funcionamiento ACESS",
+      "fuente_url": "https://www.acess.gob.ec/",
+      "valor_tipo": "estimacion",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-19",
+      "fuente_detalle": "El enlace corresponde al portal institucional ACESS; verificar la tasa exacta segun la tipologia de establecimiento."
+    },
+    {
+      "id": "gestion_desechos_sanitarios",
+      "nombre": "Plan y contrato de gestion de desechos sanitarios",
+      "entidad": "MSP / MAATE / Gestor ambiental autorizado",
+      "categoria": "Ambiental",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Contrato con gestor autorizado y protocolo de manejo de desechos infecciosos y cortopunzantes en salud.",
+      "predecesoras": [
+        "permiso_acess"
+      ],
+      "optimista": 2,
+      "probable": 5,
+      "pesimista": 10,
+      "costo": 120.0,
+      "costo_nota": "Costo de mercado referencial de contratacion inicial con gestor ambiental autorizado.",
+      "requisitos": [
+        "Permiso de funcionamiento o solicitud en tramite",
+        "Area de almacenamiento temporal de desechos",
+        "Bitacora y manifiestos de entrega"
+      ],
+      "aplica_a": [
+        "salud"
+      ],
+      "obligatorio": true,
+      "verificar": true,
+      "fuente_normativa": "Reglamento de Gestion Integral de Residuos y Desechos Sanitarios (MSP-MAATE)",
+      "fuente_url": "https://www.ambiente.gob.ec/",
+      "valor_tipo": "mercado",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-19",
+      "fuente_detalle": "Monto referencial de mercado segun volumen mensual de generacion de desechos."
+    },
+    {
+      "id": "registro_operador_agrocalidad",
+      "nombre": "Registro de operador agropecuario (Sistema GUIA)",
+      "entidad": "AGROCALIDAD",
+      "categoria": "Agropecuario",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Inscripcion como productor u operador de sanidad vegetal, pecuaria o inocuidad en el Sistema GUIA.",
+      "predecesoras": [
+        "ruc",
+        "firma_electronica"
+      ],
+      "optimista": 1,
+      "probable": 3,
+      "pesimista": 7,
+      "costo": 0.0,
+      "costo_nota": "Registro de operador en linea en el Sistema GUIA; las tasas especificas dependen de la actividad.",
+      "requisitos": [
+        "RUC o cedula vigente",
+        "Ubicacion georreferenciada de la unidad productiva",
+        "Datos de actividad agricola o pecuaria"
+      ],
+      "aplica_a": [
+        "agro"
+      ],
+      "obligatorio": true,
+      "verificar": true,
+      "fuente_normativa": "Ley Organica de Sanidad Agropecuaria; Manual Sistema GUIA",
+      "fuente_url": "https://guia.agrocalidad.gob.ec/",
+      "valor_tipo": "estimacion",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-19",
+      "fuente_detalle": "El enlace corresponde al Sistema GUIA oficial de Agrocalidad."
+    },
+    {
+      "id": "certificacion_bpa",
+      "nombre": "Certificacion en Buenas Practicas Agropecuarias (BPA)",
+      "entidad": "AGROCALIDAD",
+      "categoria": "Agropecuario",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Auditoria e inspeccion in situ para certificar inocuidad, trazabilidad y manejo sostenible del predio.",
+      "predecesoras": [
+        "registro_operador_agrocalidad"
+      ],
+      "optimista": 7,
+      "probable": 15,
+      "pesimista": 35,
+      "costo": 45.0,
+      "costo_nota": "Costo referencial de inspeccion/tarifario vigente segun categoria y superficie.",
+      "requisitos": [
+        "Registro de operador aprobado en Sistema GUIA",
+        "Autoevaluacion de guia BPA",
+        "Inspeccion tecnica in situ"
+      ],
+      "aplica_a": [
+        "agro"
+      ],
+      "obligatorio": false,
+      "verificar": true,
+      "fuente_normativa": "Resolucion AGROCALIDAD - Guia General de Buenas Practicas Agricolas",
+      "fuente_url": "https://www.agrocalidad.gob.ec/",
+      "valor_tipo": "estimacion",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-19",
+      "fuente_detalle": "El enlace corresponde al portal institucional de Agrocalidad; verificar tarifario de servicios."
+    },
+    {
+      "id": "certificado_inen",
+      "nombre": "Certificado o declaracion de conformidad tecnica (INEN)",
+      "entidad": "Servicio Ecuatoriano de Normalizacion (INEN)",
+      "categoria": "Industrial",
+      "nivel": "nacional",
+      "canton": null,
+      "descripcion": "Evaluacion de conformidad o rotulado tecnico para productos manufacturados sujetos a Reglamento Tecnico Ecuatoriano (RTE INEN).",
+      "predecesoras": [
+        "ruc"
+      ],
+      "optimista": 5,
+      "probable": 15,
+      "pesimista": 30,
+      "costo": 150.0,
+      "costo_nota": "Referencia de tramite y ensayos tecnicos segun el Reglamento Tecnico Ecuatoriano aplicable.",
+      "requisitos": [
+        "RUC activo",
+        "Ficha tecnica y ensayos de laboratorio (si aplica)",
+        "Etiquetado conforme norma NTE/RTE INEN"
+      ],
+      "aplica_a": [
+        "industria"
+      ],
+      "obligatorio": false,
+      "verificar": true,
+      "fuente_normativa": "Ley del Sistema Ecuatoriano de la Calidad; Reglamentos Tecnicos INEN",
+      "fuente_url": "https://www.normalizacion.gob.ec/",
+      "valor_tipo": "estimacion",
+      "fuente_tipo": "portal_institucional",
+      "verificado_en": "2026-11-19",
+      "fuente_detalle": "El enlace corresponde al portal institucional del INEN; confirmar si el producto esta sujeto a RTE obligatorio."
     }
   ],
   "nota_verificacion": "Cada registro declara 'valor_tipo' (oficial, estimacion, mercado o rango) y 'fuente_tipo'. Ningun valor monetario se marca como oficial si solo se dispone del portal institucional: en ese caso queda como estimacion y se exige confirmar el tarifario. Los parametros nacionales (SBU, IESS, IVA) estan contrastados con acuerdo ministerial, resolucion del IESS y circulares del SRI vigentes en 2026."

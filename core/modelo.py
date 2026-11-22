@@ -13,15 +13,13 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional
 
 from core.costos_cantonales import resolver_tarifa
 
 RAIZ = Path(__file__).resolve().parent.parent
 RUTA_BASE_ECUADOR = RAIZ / "data" / "base_ecuador.json"
 RUTA_PARAMETROS = RAIZ / "data" / "parametros_ley.json"
-
-TIPOS_VALIDOS = ("privada", "tramite")
 
 
 def _slug(texto: str) -> str:
@@ -78,6 +76,8 @@ class Actividad:
     # Mano de obra
     trabajadores: int = 0
     costo_mo_diario: float = 0.0
+    # Impuestos
+    grava_iva: bool = True
     # Origen
     origen: str = "manual"  # manual | copiloto | catalogo
     costo_manual: bool = False
@@ -106,10 +106,13 @@ class Actividad:
         return 0 <= self.optimista <= self.probable <= self.pesimista
 
     # ----------------------------------------------------------------- Costos
-    def costo_mano_obra(self, factor_cargas: float = 1.0) -> float:
+    def costo_mano_obra(
+        self, factor_cargas: float = 1.0, decimo_cuarto_diario: float = 0.0
+    ) -> float:
         if self.trabajadores <= 0 or self.costo_mo_diario <= 0:
             return 0.0
-        return self.trabajadores * self.costo_mo_diario * factor_cargas * self.duracion
+        costo_diario = self.costo_mo_diario * factor_cargas + max(float(decimo_cuarto_diario or 0.0), 0.0)
+        return self.trabajadores * costo_diario * self.duracion
 
     def costo_efectivo(
         self,
@@ -117,6 +120,7 @@ class Actividad:
         factor_cargas: float = 1.0,
         precios_por_clase: bool = True,
         tarifa_cantonal: Optional[Dict[str, Any]] = None,
+        decimo_cuarto_diario: float = 0.0,
     ) -> Dict[str, float]:
         """Desglose del costo de la actividad segun el escenario del proyecto.
 
@@ -152,7 +156,7 @@ class Actividad:
 
         directo = max(base, 0.0)
         equipos = max(float(self.costo_equipos or 0.0), 0.0)
-        mano_obra = self.costo_mano_obra(factor_cargas)
+        mano_obra = self.costo_mano_obra(factor_cargas, decimo_cuarto_diario)
         return {
             "directo": round(directo, 2),
             "equipos": round(equipos, 2),
@@ -187,6 +191,7 @@ class Actividad:
             "costo_descuento_pyme": self.costo_descuento_pyme,
             "trabajadores": self.trabajadores,
             "costo_mo_diario": self.costo_mo_diario,
+            "grava_iva": self.grava_iva,
             "origen": self.origen,
             "notas": self.notas,
         }
@@ -210,6 +215,10 @@ class Actividad:
         )
         if limpio.get("tipo") not in ("privada", "tramite"):
             limpio["tipo"] = "privada"
+        if "grava_iva" not in limpio or limpio["grava_iva"] is None:
+            limpio["grava_iva"] = limpio["tipo"] == "privada"
+        else:
+            limpio["grava_iva"] = bool(limpio["grava_iva"])
         return cls(**limpio)
 
     @classmethod
@@ -236,6 +245,7 @@ class Actividad:
             costo_por_m2=float(tramite.get("costo_por_m2", 0.0) or 0.0),
             costos_por_tamano=dict(tramite.get("costos_por_tamano", {}) or {}),
             costo_descuento_pyme=tramite.get("costo_descuento_pyme"),
+            grava_iva=False,
             origen="catalogo",
         )
 
@@ -249,6 +259,8 @@ class Proyecto:
         default_factory=lambda: {
             "canton": "Ambato",
             "tamano_empresa": "micro",
+            "tipo_personeria": "persona_natural",
+            "regimen_tributario": "general",
             "area_m2": 0.0,
             "aplica_iva": False,
         }
@@ -258,12 +270,6 @@ class Proyecto:
     def agregar(self, actividad: Actividad) -> Actividad:
         self.actividades[actividad.id] = actividad
         return actividad
-
-    def eliminar(self, actividad_id: str) -> None:
-        self.actividades.pop(actividad_id, None)
-        for actividad in self.actividades.values():
-            if actividad_id in actividad.predecesoras:
-                actividad.predecesoras.remove(actividad_id)
 
     def obtener(self, actividad_id: str) -> Optional[Actividad]:
         return self.actividades.get(actividad_id)
@@ -300,14 +306,6 @@ class Proyecto:
             actividad.predecesoras = [p for p in actividad.predecesoras if p in existentes]
         return eliminadas
 
-    def reindexar_predecesoras(self) -> None:
-        """Alias historico de :meth:`limpiar_predecesoras_huerfanas`.
-
-        Se conserva por compatibilidad, pero ya no se invoca al cargar ni al
-        calcular: la limpieza silenciosa ocultaba errores de dependencias.
-        """
-        self.limpiar_predecesoras_huerfanas()
-
     def huella(self) -> str:
         """Hash estable del contenido, util para detectar cambios y aislar widgets."""
         contenido = json.dumps(
@@ -331,6 +329,26 @@ class Proyecto:
             return 1.0 + sum(float(valor) for valor in componentes.values()) / 100.0
         return float(parametros.get("factor_costo_mano_obra", {}).get("valor", 1.0))
 
+    def decimo_cuarto_diario(self, parametros: Optional[Dict[str, Any]] = None) -> float:
+        """Provision diaria del decimo cuarto sueldo (1 SBU anual por trabajador).
+
+        En Ecuador el decimo cuarto es un monto fijo independiente del sueldo.
+        Si ``costo_empleador.componentes`` aun incluye ``decimo_cuarto`` como
+        porcentaje, retorna 0.0 para no duplicarlo.
+        """
+        parametros = parametros or cargar_parametros()
+        datos = parametros.get("costo_empleador", {}) or {}
+        componentes = datos.get("componentes") or {}
+        if "decimo_cuarto" in componentes:
+            return 0.0
+        sbu_anual = float(datos.get("decimo_cuarto_fijo_sbu", 1.0) or 0.0)
+        salario = parametros.get("salario", {}) or {}
+        sbu = float(salario.get("sbu", 0.0) or 0.0)
+        dias_mes = float(salario.get("dias_mes", 30.0) or 30.0)
+        if sbu <= 0 or sbu_anual <= 0 or dias_mes <= 0:
+            return 0.0
+        return (sbu * sbu_anual) / (12.0 * dias_mes)
+
     def resumen_costos(
         self,
         parametros: Optional[Dict[str, Any]] = None,
@@ -339,6 +357,7 @@ class Proyecto:
         parametros = parametros or cargar_parametros()
         escenario = escenario or self.escenario
         factor = self.factor_cargas(parametros)
+        decimo_cuarto = self.decimo_cuarto_diario(parametros)
         iva = float(parametros["impuestos"]["iva_pct"]) / 100.0
         admin_pct = float(escenario.get("admin_pct", parametros.get("gastos_administrativos", {}).get("pct", 0.0)) or 0.0)
 
@@ -346,6 +365,8 @@ class Proyecto:
         equipos = 0.0
         mano_obra = 0.0
         tramites = 0.0
+        directos_gravados = 0.0
+        equipos_gravados = 0.0
         detalle: List[Dict[str, Any]] = []
         advertencias_cantonales: List[Dict[str, str]] = []
         tarifas_cantonales: List[Dict[str, Any]] = []
@@ -353,16 +374,20 @@ class Proyecto:
         for actividad in self.actividades.values():
             tarifa = resolver_tarifa(actividad, escenario, parametros)
             desglose = actividad.costo_efectivo(
-                escenario, factor, tarifa_cantonal=tarifa
+                escenario, factor, tarifa_cantonal=tarifa, decimo_cuarto_diario=decimo_cuarto
             )
             # Cada actividad se clasifica una sola vez: o es tramite publico o
             # es inversion privada. Su subtotal nunca se vuelve a sumar aparte.
+            grava_iva = actividad.tipo != "tramite" and bool(actividad.grava_iva)
             if actividad.tipo == "tramite":
                 tramites += desglose["subtotal"]
             else:
                 directos += desglose["directo"]
                 equipos += desglose["equipos"]
                 mano_obra += desglose["mano_obra"]
+                if grava_iva:
+                    directos_gravados += desglose["directo"]
+                    equipos_gravados += desglose["equipos"]
             if tarifa is not None:
                 if tarifa.get("advertencia"):
                     advertencias_cantonales.append(
@@ -386,6 +411,7 @@ class Proyecto:
                     "id": actividad.id,
                     "nombre": actividad.nombre,
                     "nivel": actividad.nivel,
+                    "grava_iva": grava_iva,
                     **desglose,
                     "tarifa_origen": (tarifa or {}).get("origen", ""),
                     "tarifa_nota": (tarifa or {}).get("nota", ""),
@@ -395,20 +421,25 @@ class Proyecto:
         # Gastos administrativos: porcentaje unico sobre los costos directos de
         # la inversion privada (materiales + equipos + mano de obra). No se
         # aplica a los tramites porque las tasas publicas no generan overhead.
+        # El IVA solo grava compras, equipos y gastos generales asociados a
+        # partidas gravadas; excluye nomina en relacion de dependencia y tasas.
         base_admin = directos + equipos + mano_obra
         administrativos = round(base_admin * admin_pct / 100.0, 2)
         privada = round(base_admin + administrativos, 2)
         base = privada + tramites
-        iva_monto = round(privada * iva, 2) if escenario.get("aplica_iva") else 0.0
+        base_iva = round((directos_gravados + equipos_gravados) * (1.0 + admin_pct / 100.0), 2)
+        iva_monto = round(base_iva * iva, 2) if escenario.get("aplica_iva") else 0.0
         return {
             "directos": round(directos, 2),
             "equipos": round(equipos, 2),
             "mano_obra_incluida": round(mano_obra, 2),
+            "decimo_cuarto_diario": round(decimo_cuarto, 4),
             "administrativos": administrativos,
             "admin_pct": admin_pct,
             "privada": privada,
             "tramites": round(tramites, 2),
             "base": round(base, 2),
+            "base_iva": base_iva,
             "iva": iva_monto,
             "total": round(base + iva_monto, 2),
             "detalle": detalle,

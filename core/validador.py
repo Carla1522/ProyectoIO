@@ -66,7 +66,17 @@ REGLAS_LEGALES = [
     ("registro_ambiental", "certificado_ambiental", "El registro ambiental parte del certificado del SUIA."),
     ("licencia_ambiental", "registro_ambiental", "La licencia de alto impacto requiere el registro previo."),
     ("registro_marca", "busqueda_fonetica", "El registro de marca se solicita tras la busqueda fonetica."),
-    ("conexion_energia", "permiso_construccion", "La distribuidora exige obra autorizada para conectar el medidor."),
+    ("nombramiento_representante", "constitucion_sociedad", "El nombramiento se inscribe tras constituir la compania."),
+    ("luaf_turismo", "registro_turismo_mintur", "La LUAF municipal exige el Registro de Turismo previo del MINTUR."),
+    ("luaf_turismo", "uso_suelo", "La LUAF exige certificado de uso de suelo compatible."),
+    ("luaf_turismo", "patente_municipal", "La LUAF exige patente municipal vigente."),
+    ("luaf_turismo", "bomberos", "La LUAF exige permiso del Cuerpo de Bomberos."),
+    ("permiso_acess", "ruc", "ACESS valida el RUC del establecimiento de salud."),
+    ("permiso_acess", "rues_msp", "El permiso ACESS requiere el Unicodigo RUES del MSP."),
+    ("permiso_acess", "patente_municipal", "ACESS exige la patente municipal vigente."),
+    ("permiso_acess", "bomberos", "ACESS exige permiso de funcionamiento de bomberos."),
+    ("gestion_desechos_sanitarios", "permiso_acess", "El plan de desechos se vincula a la habilitacion sanitaria del establecimiento."),
+    ("certificacion_bpa", "registro_operador_agrocalidad", "La certificacion BPA exige estar registrado como operador en el Sistema GUIA."),
 ]
 
 
@@ -118,6 +128,32 @@ def cadenas_legales_faltantes(proyecto: Proyecto) -> List[Problema]:
                     actividad=actividad_id,
                 )
             )
+
+    conexion = proyecto.obtener("conexion_energia")
+    if conexion is not None:
+        if "permiso_construccion" in proyecto.actividades:
+            if not _es_alcanzable(proyecto, "conexion_energia", "permiso_construccion"):
+                problemas.append(
+                    Problema(
+                        ERROR,
+                        "regla_legal",
+                        f"'{conexion.nombre}' requiere como predecesora a "
+                        f"'{proyecto.actividades['permiso_construccion'].nombre}'. "
+                        "En obra nueva, la distribuidora exige permiso de construccion.",
+                        actividad="conexion_energia",
+                    )
+                )
+        elif "uso_suelo" in proyecto.actividades:
+            if not _es_alcanzable(proyecto, "conexion_energia", "uso_suelo"):
+                problemas.append(
+                    Problema(
+                        ERROR,
+                        "regla_legal",
+                        f"'{conexion.nombre}' requiere como predecesora a "
+                        f"'{proyecto.actividades['uso_suelo'].nombre}' en locales existentes.",
+                        actividad="conexion_energia",
+                    )
+                )
     return problemas
 
 
@@ -304,8 +340,87 @@ def validar(
             )
         )
 
-    # 7. Reglas normativas
+    # 7. Reglas normativas y coherencia de personeria / regimen tributario
     problemas.extend(cadenas_legales_faltantes(proyecto))
+    personeria = str(proyecto.escenario.get("tipo_personeria") or "persona_natural")
+    regimen = str(proyecto.escenario.get("regimen_tributario") or "general")
+    if regimen == "rimpe_negocio_popular" and personeria in ("sas", "compania"):
+        problemas.append(
+            Problema(
+                ERROR,
+                "regimen_incompatible",
+                "El regimen RIMPE Negocio Popular aplica unicamente a personas naturales "
+                "(hasta USD 20,000 anuales), no a sociedades ni S.A.S.",
+            )
+        )
+    if regimen in ("rimpe_emprendedor", "rimpe_negocio_popular"):
+        if any(
+            ida in proyecto.actividades
+            for ida in (
+                "permiso_construccion",
+                "aprobacion_planos",
+                "registro_operador_agrocalidad",
+                "certificacion_bpa",
+            )
+        ):
+            problemas.append(
+                Problema(
+                    ADVERTENCIA,
+                    "actividad_excluida_rimpe",
+                    "Segun la normativa del SRI, las actividades de construccion y "
+                    "agropecuarias estan excluidas del regimen RIMPE y tributan en Regimen General.",
+                )
+            )
+        if "ruc" in proyecto.actividades and "regimen_rimpe" not in proyecto.actividades:
+            problemas.append(
+                Problema(
+                    INFO,
+                    "rimpe_sin_registro",
+                    "El escenario declara regimen RIMPE; considera incorporar el tramite "
+                    "de acogimiento RIMPE en el SRI.",
+                )
+            )
+    if personeria in ("sas", "compania") and "constitucion_sociedad" not in proyecto.actividades:
+        problemas.append(
+            Problema(
+                ADVERTENCIA,
+                "personeria_sin_constitucion",
+                "El escenario declara personeria juridica, pero el cronograma no incluye "
+                "el tramite de constitucion societaria.",
+            )
+        )
+
+    empleados = int(proyecto.escenario.get("empleados") or 0)
+    if empleados > 0 and "registro_patronal" not in proyecto.actividades:
+        problemas.append(
+            Problema(
+                ADVERTENCIA,
+                "empleados_sin_iess",
+                f"El escenario declara {empleados} empleado(s), pero el cronograma no incluye "
+                "el registro patronal en el IESS.",
+            )
+        )
+    if empleados > 10 and "reglamento_higiene" not in proyecto.actividades:
+        problemas.append(
+            Problema(
+                ADVERTENCIA,
+                "empleados_sin_reglamento_higiene",
+                f"Con {empleados} empleados (>10) es obligatorio aprobar el Reglamento de "
+                "Higiene y Seguridad ante el Ministerio del Trabajo.",
+            )
+        )
+    if empleados > 0:
+        for actividad in proyecto.actividades.values():
+            if actividad.trabajadores > empleados:
+                problemas.append(
+                    Problema(
+                        INFO,
+                        "trabajadores_sobre_escenario",
+                        f"'{actividad.nombre}' asigna {actividad.trabajadores} trabajadores, "
+                        f"por encima de los {empleados} empleados declarados en el escenario.",
+                        actividad=actividad.id,
+                    )
+                )
 
     orden = {ERROR: 0, ADVERTENCIA: 1, INFO: 2}
     return sorted(problemas, key=lambda p: (orden.get(p.nivel, 3), p.actividad or ""))

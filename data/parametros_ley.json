@@ -37,22 +37,43 @@
     "verificado_en": "2026-11-13"
   },
   "costo_empleador": {
-    "descripcion": "Porcentajes que el empleador paga sobre la remuneracion, ademas del sueldo. El factor se calcula sumando los componentes; no se fija a mano.",
+    "descripcion": "Cargas proporcionales al sueldo que el empleador paga sobre la remuneracion, mas el decimo cuarto sueldo fijo de 1 SBU anual por trabajador.",
     "componentes": {
       "aporte_patronal": 11.15,
       "iece_secap": 1.0,
       "fondos_reserva": 8.33,
       "decimo_tercero": 8.33,
-      "decimo_cuarto": 8.33,
       "vacaciones": 4.17
     },
-    "nota": "El decimo cuarto se estima como 1 SBU/12 sobre un sueldo de referencia igual al SBU; para sueldos mayores su peso relativo baja. Ajuste el componente si su caso difiere.",
+    "decimo_cuarto_fijo_sbu": 1.0,
+    "nota": "Aporte patronal, IECE/SECAP, fondos de reserva, decimo tercero y vacaciones suman 32.98% proporcional al sueldo (factor 1.3298). El decimo cuarto se calcula como monto fijo de 1 SBU anual por trabajador (USD 482.00 / 12 / 30 = USD 1.34 diarios), independiente del salario.",
     "verificado_en": "2026-11-13"
   },
   "factor_costo_mano_obra": {
-    "descripcion": "Compatibilidad: factor = 1 + suma(componentes de costo_empleador)/100",
-    "formula": "1 + (aporte_patronal + iece_secap + fondos_reserva + decimo_tercero + decimo_cuarto + vacaciones) / 100",
-    "valor": 1.4131
+    "descripcion": "Factor porcentual proporcional al sueldo (sin contar el decimo cuarto fijo por SBU).",
+    "formula": "1 + (aporte_patronal + iece_secap + fondos_reserva + decimo_tercero + vacaciones) / 100",
+    "valor": 1.3298
+  },
+  "regimenes_tributarios": {
+    "general": {
+      "nombre": "Regimen General",
+      "aplica_a": ["persona_natural", "sas", "compania"]
+    },
+    "rimpe_emprendedor": {
+      "nombre": "RIMPE Emprendedor",
+      "ingresos_min": 20000.01,
+      "ingresos_max": 300000.0,
+      "permanencia_max_anos": 3,
+      "aplica_a": ["persona_natural", "sas", "compania"],
+      "actividades_excluidas": ["obra_civil", "agro", "transporte", "servicios_profesionales"]
+    },
+    "rimpe_negocio_popular": {
+      "nombre": "RIMPE Negocio Popular",
+      "ingresos_min": 0.0,
+      "ingresos_max": 20000.0,
+      "aplica_a": ["persona_natural"],
+      "actividades_excluidas": ["obra_civil", "agro", "transporte", "servicios_profesionales"]
+    }
   },
   "gastos_administrativos": {
     "pct": 5.0,

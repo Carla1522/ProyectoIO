@@ -36,12 +36,11 @@ from core.modelo import (
     nuevo_id,
 )
 from core.seguridad import (
+    ID_VALIDO,
     ErrorDatos,
-    cargar_json_bytes,
     escapar,
     sanitizar_nombre_archivo,
     url_segura,
-    validar_proyecto_json,
 )
 from core.validador import (
     ADVERTENCIA,
@@ -51,12 +50,12 @@ from core.validador import (
     hay_errores,
     validar,
 )
-from services import copiloto_ia
+from services import copiloto_ia, importador
 from ui.estilos import badge, seccion
 
 COLUMNAS_EDITABLES = [
     "ID", "Actividad", "Tipo", "Predecesoras", "a", "m", "b",
-    "Costo USD", "Equipos USD", "Trabajadores", "Costo MO/dia", "Entidad",
+    "Costo USD", "Equipos USD", "IVA", "Trabajadores", "Costo MO/dia", "Entidad",
 ]
 
 
@@ -68,7 +67,6 @@ def nuevo_proyecto_sesion(proyecto: Proyecto, reiniciar_chat: bool = False) -> N
         st.session_state.get("_proyecto_revision", 0)
     ) + 1
     st.session_state.pop("plan_pendiente", None)
-    st.session_state["calculado"] = True
     if reiniciar_chat:
         st.session_state["chat"] = []
 
@@ -81,6 +79,7 @@ def revision_actual() -> int:
 def sidebar_escenario(proyecto: Proyecto) -> Dict[str, Any]:
     parametros = cargar_parametros()
     escenario = dict(proyecto.escenario)
+    rev = revision_actual()
     st.sidebar.markdown("#### Escenario")
     st.sidebar.caption("Las tasas y supuestos se recalculan al cambiar un valor.")
 
@@ -92,6 +91,7 @@ def sidebar_escenario(proyecto: Proyecto) -> Dict[str, Any]:
         "Canton",
         cantones,
         index=cantones.index(canton_actual),
+        key=f"sc_canton_{rev}",
         help=(
             "Determina las tarifas municipales. Cada canton usa su propio "
             "tarifario; no se trasladan valores entre ciudades."
@@ -106,7 +106,44 @@ def sidebar_escenario(proyecto: Proyecto) -> Dict[str, Any]:
         "Tamano de empresa",
         tamanos,
         index=tamanos.index(tamano_actual),
-        help="Afecta tasas de ARCSA y descuentos para PYMES.",
+        key=f"sc_tamano_{rev}",
+        help="Afecta tasas de ARCSA, ACESS y descuentos PYME.",
+    )
+
+    personerias = ["persona_natural", "sas", "compania"]
+    etiquetas_personeria = {
+        "persona_natural": "Persona natural",
+        "sas": "Sociedad (S.A.S.)",
+        "compania": "Compania (Cia. Ltda. / S.A.)",
+    }
+    pers_actual = str(escenario.get("tipo_personeria") or "persona_natural")
+    if pers_actual not in personerias:
+        pers_actual = "persona_natural"
+    escenario["tipo_personeria"] = st.sidebar.selectbox(
+        "Personeria juridica",
+        personerias,
+        index=personerias.index(pers_actual),
+        format_func=lambda v: etiquetas_personeria.get(v, v),
+        key=f"sc_personeria_{rev}",
+        help="Define si requiere constitucion societaria y nombramiento en Supercias.",
+    )
+
+    regimenes = ["general", "rimpe_emprendedor", "rimpe_negocio_popular"]
+    etiquetas_regimen = {
+        "general": "Regimen General",
+        "rimpe_emprendedor": "RIMPE Emprendedor",
+        "rimpe_negocio_popular": "RIMPE Negocio Popular",
+    }
+    reg_actual = str(escenario.get("regimen_tributario") or "general")
+    if reg_actual not in regimenes:
+        reg_actual = "general"
+    escenario["regimen_tributario"] = st.sidebar.selectbox(
+        "Regimen tributario (SRI)",
+        regimenes,
+        index=regimenes.index(reg_actual),
+        format_func=lambda v: etiquetas_regimen.get(v, v),
+        key=f"sc_regimen_{rev}",
+        help="Negocio Popular aplica solo a personas naturales hasta USD 20,000; construccion y agro estan excluidos de RIMPE.",
     )
 
     escenario["area_m2"] = st.sidebar.number_input(
@@ -115,7 +152,8 @@ def sidebar_escenario(proyecto: Proyecto) -> Dict[str, Any]:
         max_value=200000.0,
         value=float(escenario.get("area_m2") or 0.0),
         step=10.0,
-        help="Se usa para las tasas municipales por metro cuadrado.",
+        key=f"sc_area_{rev}",
+        help="Se usa para las tasas municipales por metro cuadrado en tramites de construccion/planos.",
     )
     escenario["empleados"] = st.sidebar.number_input(
         "Numero de empleados",
@@ -123,6 +161,8 @@ def sidebar_escenario(proyecto: Proyecto) -> Dict[str, Any]:
         max_value=5000,
         value=int(escenario.get("empleados") or 0),
         step=1,
+        key=f"sc_empleados_{rev}",
+        help="Activa tramites laborales obligatorios (IESS/SUT/Reglamento de Higiene si > 10) y valida dotacion. El costo de nomina se edita por actividad en la tabla.",
     )
     escenario["admin_pct"] = st.sidebar.number_input(
         "Gastos administrativos (%)",
@@ -134,12 +174,14 @@ def sidebar_escenario(proyecto: Proyecto) -> Dict[str, Any]:
             )
         ),
         step=0.5,
+        key=f"sc_admin_{rev}",
         help="Supuesto editable sobre los costos directos privados. No es una tasa legal.",
     )
     escenario["aplica_iva"] = st.sidebar.checkbox(
-        "Aplicar IVA a la inversion privada",
+        "Aplicar IVA (15%) a compras y equipos",
         value=bool(escenario.get("aplica_iva", False)),
-        help="El IVA no se aplica a las tasas y tramites publicos.",
+        key=f"sc_iva_{rev}",
+        help="Grava costos directos, equipos y gastos generales asociados. Excluye nomina en relacion de dependencia, actividades con IVA 0% y tasas publicas.",
     )
 
     panel_canton(escenario["canton"], parametros)
@@ -210,6 +252,8 @@ def _plan_a_dataframe(plan: Dict[str, Any]) -> pd.DataFrame:
             continue
         filas.append(
             {
+                "Incluir": True,
+                "ID": str(actividad.get("id", "")),
                 "Actividad": str(actividad.get("nombre", "")),
                 "Tipo": actividad.get("tipo", "privada"),
                 "Predecesoras": ", ".join(actividad.get("predecesoras", []) or []),
@@ -218,6 +262,11 @@ def _plan_a_dataframe(plan: Dict[str, Any]) -> pd.DataFrame:
                 "b": float(actividad.get("pesimista", 1) or 0),
                 "Costo USD": float(actividad.get("costo", 0) or 0),
                 "Equipos USD": float(actividad.get("costo_equipos", 0) or 0),
+                "IVA": (
+                    False
+                    if actividad.get("tipo", "privada") == "tramite"
+                    else bool(actividad.get("grava_iva", True))
+                ),
                 "Trabajadores": int(actividad.get("trabajadores", 0) or 0),
                 "Costo MO/dia": float(actividad.get("costo_mo_diario", 0) or 0),
             }
@@ -226,37 +275,54 @@ def _plan_a_dataframe(plan: Dict[str, Any]) -> pd.DataFrame:
 
 
 def _dataframe_a_plan(tabla: pd.DataFrame, plan: Dict[str, Any]) -> Dict[str, Any]:
-    """Reconstruye el JSON del plan conservando ids y metadata no editable.
-
-    El ID no se edita en la tabla de aprobacion, pero se conserva para que las
-    predecesoras sigan apuntando a la actividad correcta.
-    """
+    """Reconstruye el JSON del plan conservando ids y metadata no editable."""
     originales = [
         a for a in plan.get("actividades", []) if isinstance(a, dict)
     ]
+    por_id = {str(a.get("id") or ""): a for a in originales if a.get("id")}
+    excluidos = set()
+    for indice, fila in tabla.iterrows():
+        if not bool(fila.get("Incluir", True)):
+            base = por_id.get(str(fila.get("ID") or "")) or (
+                originales[indice] if indice < len(originales) else {}
+            )
+            if base.get("id"):
+                excluidos.add(str(base["id"]))
+
     actividades: List[Dict[str, Any]] = []
     for indice, fila in tabla.iterrows():
-        base = dict(originales[indice]) if indice < len(originales) else {}
-        ida = str(base.get("id") or "").strip()
+        if not bool(fila.get("Incluir", True)):
+            continue
+        id_fila = str(fila.get("ID") or "").strip()
+        base = dict(por_id.get(id_fila) or (originales[indice] if indice < len(originales) else {}))
+        ida = str(base.get("id") or id_fila).strip()
         if not ida:
             ida = nuevo_id(str(fila.get("Actividad") or "actividad"), [a["id"] for a in actividades])
         preds = [
             p.strip()
             for p in str(fila.get("Predecesoras") or "").replace(";", ",").split(",")
-            if p.strip()
+            if p.strip() and p.strip() not in excluidos
         ]
+        tipo_act = str(fila.get("Tipo") or base.get("tipo", "privada"))
+        iva_val = fila.get("IVA")
+        grava_iva = (
+            False
+            if tipo_act == "tramite"
+            else (True if iva_val is None or (isinstance(iva_val, float) and pd.isna(iva_val)) else bool(iva_val))
+        )
         actividades.append(
             {
                 **base,
                 "id": ida,
                 "nombre": str(fila.get("Actividad") or base.get("nombre", ida)),
-                "tipo": str(fila.get("Tipo") or base.get("tipo", "privada")),
+                "tipo": tipo_act,
                 "predecesoras": preds,
                 "optimista": float(fila.get("a") or 0),
                 "probable": float(fila.get("m") or 0),
                 "pesimista": float(fila.get("b") or 0),
                 "costo": float(fila.get("Costo USD") or 0),
                 "costo_equipos": float(fila.get("Equipos USD") or 0),
+                "grava_iva": grava_iva,
                 "trabajadores": int(float(fila.get("Trabajadores") or 0)),
                 "costo_mo_diario": float(fila.get("Costo MO/dia") or 0),
             }
@@ -264,18 +330,19 @@ def _dataframe_a_plan(tabla: pd.DataFrame, plan: Dict[str, Any]) -> Dict[str, An
     return {**plan, "actividades": actividades}
 
 
-def _vista_aprobacion(plan: Dict[str, Any], proyecto: Proyecto) -> None:
+def vista_aprobacion(plan: Dict[str, Any], proyecto: Proyecto) -> None:
     """Muestra el plan, permite editarlo y exige aprobacion explicita."""
     modo = str(plan.get("modo") or "local")
+    proveedor = str(plan.get("proveedor") or "IA")
     etiqueta_modo = {
-        "api": "respuesta de la API de IA",
-        "local": "planificador local (sin IA)",
-        "respaldo_local": "respaldo local: la API no respondio",
+        "api": f"respuesta generada por IA ({proveedor})",
+        "local": "planificador local basado en catalogo",
+        "respaldo_local": "respaldo local (la API no respondio)",
     }.get(modo, "plan propuesto")
     seccion(
-        "Plan propuesto por el copiloto",
-        f"Origen: {etiqueta_modo}. Revisa la tabla antes de incorporarla; los calculos "
-        "se haran con el motor CPM/PERT, no con el texto de la IA.",
+        "Paso 2: Revisa y aprueba el plan propuesto",
+        f"Origen: {etiqueta_modo}. Revisa las actividades, duraciones (a, m, b) y costos "
+        "antes de incorporarlas al proyecto. Todos los calculos finales los ejecuta el motor CPM/PERT.",
     )
     tabla = _plan_a_dataframe(plan)
     if tabla.empty:
@@ -292,16 +359,19 @@ def _vista_aprobacion(plan: Dict[str, Any], proyecto: Proyecto) -> None:
         width="stretch",
         key=f"editor_plan_copiloto_{huella}",
         column_config={
+            "Incluir": st.column_config.CheckboxColumn("Incluir", width="small"),
+            "ID": st.column_config.TextColumn("ID", width="small", disabled=True),
             "Actividad": st.column_config.TextColumn("Actividad", width="large", required=True),
             "Tipo": st.column_config.SelectboxColumn(
                 "Tipo", options=["privada", "tramite"], width="small"
             ),
             "Predecesoras": st.column_config.TextColumn("Predecesoras", width="medium"),
-            "a": st.column_config.NumberColumn("a", min_value=0.0, step=0.5, format="%.1f"),
-            "m": st.column_config.NumberColumn("m", min_value=0.0, step=0.5, format="%.1f"),
-            "b": st.column_config.NumberColumn("b", min_value=0.0, step=0.5, format="%.1f"),
+            "a": st.column_config.NumberColumn("a (optimista)", min_value=0.0, step=0.5, format="%.1f"),
+            "m": st.column_config.NumberColumn("m (probable)", min_value=0.0, step=0.5, format="%.1f"),
+            "b": st.column_config.NumberColumn("b (pesimista)", min_value=0.0, step=0.5, format="%.1f"),
             "Costo USD": st.column_config.NumberColumn("Costo USD", min_value=0.0, step=10.0, format="%.2f"),
             "Equipos USD": st.column_config.NumberColumn("Equipos USD", min_value=0.0, step=10.0, format="%.2f"),
+            "IVA": st.column_config.CheckboxColumn("IVA 15%", width="small"),
             "Trabajadores": st.column_config.NumberColumn("Trabajadores", min_value=0, step=1),
             "Costo MO/dia": st.column_config.NumberColumn("Costo MO/dia", min_value=0.0, step=1.0, format="%.2f"),
         },
@@ -314,9 +384,9 @@ def _vista_aprobacion(plan: Dict[str, Any], proyecto: Proyecto) -> None:
         cpm = calcular_cpm(candidato)
         problemas = validar(candidato, cargar_base_ecuador())
         c1, c2, c3 = st.columns(3)
-        c1.metric("Actividades", len(candidato.actividades))
+        c1.metric("Actividades totales", len(candidato.actividades))
         c2.metric("Duracion estimada", f"{cpm['duracion']:.1f} dias")
-        c3.metric("Criticas", len(cpm["actividades_criticas"]))
+        c3.metric("Ruta critica", f"{len(cpm['actividades_criticas'])} tareas")
         errores = [p for p in problemas if p.nivel == ERROR]
         if errores:
             st.error(
@@ -331,8 +401,8 @@ def _vista_aprobacion(plan: Dict[str, Any], proyecto: Proyecto) -> None:
                 )
         else:
             st.caption(
-                "Sin errores de estructura. Al aprobar, este plan reemplaza la tabla actual "
-                "del proyecto y podras seguir editandola en la pestana Actividades."
+                "Estructura valida sin ciclos. Al aprobar, este plan se incorpora formalmente "
+                "a tu proyecto y podras explorar su Ruta Critica y Presupuesto en las siguientes pestanas."
             )
     except CicloError as error:
         st.error(f"No se puede aprobar el plan: {escapar(error)}")
@@ -350,6 +420,7 @@ def _vista_aprobacion(plan: Dict[str, Any], proyecto: Proyecto) -> None:
             disabled=bool(errores),
         ):
             nuevo_proyecto_sesion(copiloto_ia.aplicar_plan(plan_editado, proyecto))
+            st.session_state["plan_aprobado_exito"] = True
             st.rerun()
     with col2:
         if st.button("Descartar plan", width="stretch"):
@@ -359,72 +430,112 @@ def _vista_aprobacion(plan: Dict[str, Any], proyecto: Proyecto) -> None:
 
 def panel_copiloto(proyecto: Proyecto, incluir_opcionales: bool = False) -> None:
     seccion(
-        "Copiloto de planificacion",
-        "Describe el proyecto en una frase. El copiloto propone actividades y tramites; "
-        "tu apruebas la tabla final.",
+        "Copiloto de planificacion (IA)",
+        "Describe tu proyecto en una frase. El copiloto te hara preguntas clave y propondra "
+        "las tareas operativas y los tramites de ley del Ecuador.",
     )
 
     cfg = copiloto_ia.configuracion()
-    col_estado, col_prueba = st.columns([3, 1])
+    col_estado, col_prueba = st.columns([3.2, 1])
     with col_estado:
         if cfg["proveedor"] == "local":
-            st.caption("Modo local activo: no se realizan llamadas a ningun proveedor de IA.")
+            st.caption("Modo local activo (sin llamadas a IA externa).")
         else:
             st.caption(
-                f"Proveedor configurado: {cfg['proveedor']} · modelo {cfg['modelo']}."
+                f"Proveedor activo: **{cfg['proveedor']}** · modelo `{cfg['modelo']}` (IA conectada)."
             )
+    resultado_conexion = None
     with col_prueba:
-        if st.button("Probar conexion", width="stretch", help="Verifica la clave y el alcance del modelo."):
-            resultado = copiloto_ia.probar_conexion()
-            if resultado["ok"]:
-                st.success(resultado["mensaje"])
-            else:
-                st.warning(resultado["mensaje"])
+        if st.button("Probar conexion", width="stretch", help="Verifica la clave y el modelo."):
+            resultado_conexion = copiloto_ia.probar_conexion()
+    if resultado_conexion is not None:
+        if resultado_conexion["ok"]:
+            st.success(resultado_conexion["mensaje"])
+        else:
+            st.warning(resultado_conexion["mensaje"])
 
     historial = st.session_state.setdefault("chat", [])
+
+    # Si el chat esta vacio, mostramos una guia sobria y ejemplos para iniciar
+    sugerencia_seleccionada = None
+    if not historial:
+        st.markdown(
+            '<div class="ec-card">'
+            '<div class="ec-card-titulo">Asistente normativo y de planificacion</div>'
+            "<p>Describe tu proyecto en lenguaje natural (giro, ciudad, area aproximada y personal). "
+            "El copiloto estructura actividades privadas, enlaza los tramites obligatorios del Ecuador "
+            "y entrega una tabla editable lista para calcular ruta critica y presupuesto.</p>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        st.caption("O inicia con una plantilla rapida por sector:")
+        cs1, cs2, cs3, cs4 = st.columns(4)
+        with cs1:
+            if st.button("Ferreteria en Ambato", width="stretch"):
+                sugerencia_seleccionada = "Quiero abrir una ferreteria comercial en Ambato con local arrendado"
+        with cs2:
+            if st.button("Consultorio medico", width="stretch"):
+                sugerencia_seleccionada = "Quiero abrir un consultorio medico o clinica privada en Quito"
+        with cs3:
+            if st.button("Hostal turistico", width="stretch"):
+                sugerencia_seleccionada = "Quiero abrir un hostal turistico de 200 m2 en Ambato"
+        with cs4:
+            if st.button("Taller industrial", width="stretch"):
+                sugerencia_seleccionada = "Quiero abrir un taller de carpinteria para fabricar muebles en Ambato"
+
+    # Mostrar todos los mensajes anteriores en orden cronologico
     for turno in historial:
         with st.chat_message(turno["role"]):
             st.markdown(turno["content"])
+            if turno.get("caption"):
+                st.caption(turno["caption"])
+            if turno.get("error"):
+                st.warning(f"Detalle tecnico: {capacidad_texto(turno['error'])}")
 
-    pregunta = st.chat_input("Ej: Quiero construir un galpon para fabricar muebles en Ambato")
+    pregunta_input = st.chat_input("Escribe tu proyecto o responde las preguntas del copiloto...")
+    pregunta = pregunta_input or sugerencia_seleccionada
+
     if pregunta:
         historial.append({"role": "user", "content": pregunta})
         with st.chat_message("user"):
             st.markdown(pregunta)
         with st.chat_message("assistant"):
-            with st.spinner("Analizando el proyecto y la normativa aplicable..."):
+            with st.spinner("El Copiloto normativo esta analizando tu proyecto..."):
                 respuesta = copiloto_ia.conversar(
                     historial, pregunta, proyecto.escenario, incluir_opcionales
                 )
-            texto = respuesta["mensaje"] or "Listo."
-            st.markdown(texto)
+            texto = respuesta.get("mensaje") or "Listo."
             if respuesta.get("preguntas"):
-                st.markdown("\n".join(f"- {p}" for p in respuesta["preguntas"]))
+                texto += "\n\n" + "\n".join(f"- {p}" for p in respuesta["preguntas"])
             if respuesta.get("supuestos"):
-                with st.expander("Supuestos usados"):
-                    st.markdown("\n".join(f"- {s}" for s in respuesta["supuestos"]))
-            st.caption(
-                {
-                    "api": f"Respuesta generada por {respuesta.get('proveedor', 'IA')}.",
-                    "local": "Generado por el planificador local, sin IA.",
-                    "respaldo_local": "Respuesta de respaldo local: la API de IA no respondio.",
-                }.get(respuesta.get("modo", "local"), "Plan propuesto.")
-            )
+                texto += "\n\n*Supuestos normativos considerados:*\n" + "\n".join(f"- {s}" for s in respuesta["supuestos"])
+            caption_modo = {
+                "api": f"Respuesta generada por {respuesta.get('proveedor', 'IA')}.",
+                "local": "Generado por el planificador local, sin IA.",
+                "respaldo_local": "Respuesta de respaldo local: la API de IA no respondio.",
+            }.get(respuesta.get("modo", "local"), "Plan propuesto.")
+            st.markdown(texto)
+            st.caption(caption_modo)
             if respuesta.get("error"):
                 st.warning(f"Detalle tecnico: {capacidad_texto(respuesta['error'])}")
-        historial.append({"role": "assistant", "content": texto})
+        historial.append(
+            {
+                "role": "assistant",
+                "content": texto,
+                "caption": caption_modo,
+                "error": respuesta.get("error"),
+            }
+        )
 
         if respuesta.get("listo") and respuesta.get("proyecto"):
             plan = dict(respuesta["proyecto"])
             plan["modo"] = respuesta.get("modo", "local")
+            plan["proveedor"] = respuesta.get("proveedor", "")
             st.session_state["plan_pendiente"] = plan
-            st.rerun()
 
-    plan = st.session_state.get("plan_pendiente")
-    if plan:
-        _vista_aprobacion(plan, proyecto)
+        st.rerun()
 
-    if historial and st.button("Reiniciar conversacion"):
+    if historial and st.button("Reiniciar conversacion", help="Borra el historial del chat"):
         st.session_state["chat"] = []
         st.session_state.pop("plan_pendiente", None)
         st.rerun()
@@ -453,6 +564,7 @@ def proyecto_a_dataframe(proyecto: Proyecto) -> pd.DataFrame:
                 "b": actividad.pesimista,
                 "Costo USD": round(actividad.costo, 2),
                 "Equipos USD": round(actividad.costo_equipos, 2),
+                "IVA": False if actividad.tipo == "tramite" else bool(actividad.grava_iva),
                 "Trabajadores": actividad.trabajadores,
                 "Costo MO/dia": round(actividad.costo_mo_diario, 2),
                 "Entidad": actividad.entidad or "—",
@@ -548,6 +660,13 @@ def proyecto_desde_dataframe(original: Proyecto, tabla: pd.DataFrame) -> Proyect
             actividad.costo_manual = True
         actividad.costo = nuevo_costo
         actividad.costo_equipos = nuevo_equipos
+        iva_val = fila.get("IVA")
+        if actividad.tipo == "tramite":
+            actividad.grava_iva = False
+        elif iva_val is None or (isinstance(iva_val, float) and pd.isna(iva_val)):
+            actividad.grava_iva = True
+        else:
+            actividad.grava_iva = bool(iva_val)
         actividad.trabajadores = int(_num(fila.get("Trabajadores")))
         actividad.costo_mo_diario = _num(fila.get("Costo MO/dia"))
         nuevo.agregar(actividad)
@@ -562,6 +681,124 @@ def proyecto_desde_dataframe(original: Proyecto, tabla: pd.DataFrame) -> Proyect
         ]
 
     return nuevo
+
+
+def _siguiente_id_pert(proyecto: Proyecto) -> str:
+    existentes = set(proyecto.actividades)
+    for codigo in range(ord("A"), ord("Z") + 1):
+        letra = chr(codigo)
+        if letra not in existentes:
+            return letra
+    indice = 1
+    while f"act_{indice}" in existentes:
+        indice += 1
+    return f"act_{indice}"
+
+
+def formulario_actividad_manual(proyecto: Proyecto, key_prefix: str = "manual") -> None:
+    """Formulario guiado para planificacion manual PERT (a, m, b y predecesoras)."""
+    rev = revision_actual()
+    sugerido = _siguiente_id_pert(proyecto)
+    col_id, col_nombre, col_tipo = st.columns([0.8, 2.2, 1])
+    with col_id:
+        ida = st.text_input(
+            "ID",
+            value=sugerido,
+            max_chars=64,
+            key=f"{key_prefix}_id_{rev}",
+            help="Identificador corto (ej. A, B, C o diseno_base).",
+        ).strip()
+    with col_nombre:
+        nombre = st.text_input(
+            "Actividad",
+            value="",
+            placeholder=f"Ej: Actividad {sugerido} o Levantamiento inicial",
+            key=f"{key_prefix}_nombre_{rev}",
+        ).strip()
+    with col_tipo:
+        tipo = st.selectbox(
+            "Tipo",
+            ["privada", "tramite"],
+            key=f"{key_prefix}_tipo_{rev}",
+        )
+
+    col_pred, col_a, col_m, col_b = st.columns([2.1, 0.7, 0.7, 0.7])
+    opciones_pred = list(proyecto.actividades.keys())
+    with col_pred:
+        preds_sel = st.multiselect(
+            "Predecesoras",
+            opciones_pred,
+            format_func=lambda pid: f"{pid} · {proyecto.actividades[pid].nombre}",
+            key=f"{key_prefix}_preds_{rev}",
+            placeholder="Ninguna (actividad inicial)",
+        )
+    with col_a:
+        opt = st.number_input("a (opt.)", min_value=0.0, value=1.0, step=0.5, key=f"{key_prefix}_a_{rev}")
+    with col_m:
+        prob = st.number_input("m (prob.)", min_value=0.0, value=2.0, step=0.5, key=f"{key_prefix}_m_{rev}")
+    with col_b:
+        pes = st.number_input("b (pes.)", min_value=0.0, value=4.0, step=0.5, key=f"{key_prefix}_b_{rev}")
+
+    if 0 <= opt <= prob <= pes:
+        te = (opt + 4 * prob + pes) / 6.0
+        var = ((pes - opt) / 6.0) ** 2
+        st.caption(f"Vista previa PERT: `te = {te:.2f} dias` · `varianza = {var:.4f}`")
+    else:
+        st.warning("Debe cumplirse `0 <= a <= m <= b` para calcular tiempos PERT.")
+
+    with st.expander("Costos, personal e IVA (opcional)"):
+        c1, c2, c3, c4, c5 = st.columns([1, 1, 0.9, 1, 0.7])
+        with c1:
+            costo = st.number_input("Costo directo USD", min_value=0.0, value=0.0, step=10.0, key=f"{key_prefix}_costo_{rev}")
+        with c2:
+            equipos = st.number_input("Equipos USD", min_value=0.0, value=0.0, step=10.0, key=f"{key_prefix}_eq_{rev}")
+        with c3:
+            trab = st.number_input("Trabajadores", min_value=0, value=0, step=1, key=f"{key_prefix}_trab_{rev}")
+        with c4:
+            mo_dia = st.number_input("MO/dia USD", min_value=0.0, value=0.0, step=1.0, key=f"{key_prefix}_mo_{rev}")
+        with c5:
+            grava_iva = st.checkbox(
+                "IVA 15%",
+                value=(tipo == "privada"),
+                disabled=(tipo == "tramite"),
+                key=f"{key_prefix}_iva_{rev}",
+            )
+        preds_extra = st.text_input(
+            "Predecesoras adicionales por ID (opcional, separadas por coma)",
+            value="",
+            key=f"{key_prefix}_preds_extra_{rev}",
+        )
+
+    if st.button("Agregar actividad al cronograma", type="primary", width="stretch", key=f"{key_prefix}_btn_{rev}"):
+        if not ida or not ID_VALIDO.match(ida):
+            st.error("Ingresa un ID valido (1 a 64 caracteres, sin saltos de linea).")
+            return
+        if ida in proyecto.actividades:
+            st.error(f"Ya existe una actividad con el ID '{escapar(ida)}'.")
+            return
+        if not (0 <= opt <= prob <= pes):
+            st.error("Los tiempos PERT deben cumplir 0 <= optimista <= probable <= pesimista.")
+            return
+        preds = list(dict.fromkeys(list(preds_sel) + _parsear_preds(preds_extra)))
+        proyecto.agregar(
+            Actividad(
+                id=ida,
+                nombre=nombre or f"Actividad {ida}",
+                tipo=tipo,
+                predecesoras=preds,
+                optimista=float(opt),
+                probable=float(prob),
+                pesimista=float(pes),
+                costo=float(costo),
+                costo_equipos=float(equipos),
+                trabajadores=int(trab),
+                costo_mo_diario=float(mo_dia),
+                grava_iva=False if tipo == "tramite" else bool(grava_iva),
+                origen="manual",
+            )
+        )
+        st.session_state["_proyecto_revision"] = rev + 1
+        st.rerun()
 
 
 def tabla_editable(proyecto: Proyecto) -> Proyecto:
@@ -596,6 +833,10 @@ def tabla_editable(proyecto: Proyecto) -> Proyecto:
             "Equipos USD": st.column_config.NumberColumn(
                 "Equipos USD", min_value=0.0, step=10.0, format="%.2f",
                 help="Maquinaria, herramientas y equipos alquilados.",
+            ),
+            "IVA": st.column_config.CheckboxColumn(
+                "IVA 15%", width="small",
+                help="Grava IVA 15% sobre costos directos y equipos (desmarcar si es tarifa 0%).",
             ),
             "Trabajadores": st.column_config.NumberColumn("Trabajadores", min_value=0, step=1),
             "Costo MO/dia": st.column_config.NumberColumn("Costo MO/dia", min_value=0.0, step=1.0, format="%.2f"),
@@ -744,42 +985,53 @@ def mostrar_problemas(problemas: List[Problema]) -> None:
 
 # ------------------------------------------------------------ Persistencia
 def panel_guardar_cargar(proyecto: Proyecto) -> None:
-    with st.expander("Guardar / cargar proyecto (JSON)"):
-        col1, col2 = st.columns(2)
-        with col1:
-            st.download_button(
-                "Descargar proyecto",
-                data=json.dumps(proyecto.to_dict(), ensure_ascii=False, indent=2),
-                file_name=sanitizar_nombre_archivo(proyecto.nombre),
-                mime="application/json",
-                width="stretch",
-            )
-        with col2:
-            archivo = st.file_uploader(
-                "Cargar proyecto", type=["json"], label_visibility="collapsed"
-            )
-            if archivo is not None:
-                # Evita el bucle de recarga: Streamlit conserva el archivo entre
-                # reruns y sin esta huella el proyecto se recargaria sin parar.
-                contenido = archivo.getvalue()
-                huella = hashlib.sha256(contenido).hexdigest()
-                if st.session_state.get("_json_cargado") != huella:
-                    try:
-                        datos = validar_proyecto_json(cargar_json_bytes(contenido))
-                        cargado = Proyecto.from_dict(datos)
-                    except (ErrorDatos, ValueError) as error:
-                        st.error(f"Archivo invalido: {escapar(error)}")
-                    else:
-                        st.session_state["_json_cargado"] = huella
-                        nuevo_proyecto_sesion(cargado)
-                        huerfanas = cargado.dependencias_huerfanas()
-                        if huerfanas:
-                            total = sum(len(v) for v in huerfanas.values())
-                            st.warning(
-                                f"Proyecto cargado con {total} dependencia(s) que apuntan a "
-                                "IDs inexistentes. Se conservaron; revisalas en la pestana "
-                                "Actividades."
-                            )
-                        else:
-                            st.success("Proyecto cargado y validado.")
-                        st.rerun()
+    with st.sidebar.expander("Guardar / cargar proyecto"):
+        st.download_button(
+            "Descargar proyecto (JSON)",
+            data=json.dumps(proyecto.to_dict(), ensure_ascii=False, indent=2),
+            file_name=sanitizar_nombre_archivo(proyecto.nombre),
+            mime="application/json",
+            width="stretch",
+        )
+        st.download_button(
+            "Descargar plantilla (.xlsx)",
+            data=importador.plantilla_excel(),
+            file_name="plantilla_ecuaproject.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            width="stretch",
+        )
+        st.caption("Importa `.json`, `.xlsx`, `.csv` o `.pdf` (max. 2 MB).")
+        archivo = st.file_uploader(
+            "Cargar proyecto",
+            type=["json", "xlsx", "csv", "pdf"],
+            label_visibility="collapsed",
+        )
+        if archivo is not None:
+            # Evita el bucle de recarga: Streamlit conserva el archivo entre
+            # reruns y sin esta huella el proyecto se recargaria sin parar.
+            contenido = archivo.getvalue()
+            huella = hashlib.sha256(contenido).hexdigest()
+            if st.session_state.get("_json_cargado") != huella:
+                try:
+                    cargado, formato, avisos = importador.importar_archivo(
+                        archivo.name, contenido
+                    )
+                except (ErrorDatos, ValueError) as error:
+                    st.error(f"Archivo invalido: {escapar(error)}")
+                else:
+                    st.session_state["_json_cargado"] = huella
+                    st.session_state["modo_manual"] = False
+                    nuevo_proyecto_sesion(cargado)
+                    huerfanas = cargado.dependencias_huerfanas()
+                    if huerfanas:
+                        total = sum(len(v) for v in huerfanas.values())
+                        avisos.append(
+                            f"Hay {total} dependencia(s) que apuntan a IDs inexistentes; "
+                            "revisalas en Tabla de Actividades."
+                        )
+                    st.session_state["proyecto_cargado_msg"] = (
+                        f"Proyecto importado ({formato.upper()}): {cargado.nombre} "
+                        f"({len(cargado.actividades)} actividades)."
+                    )
+                    st.session_state["proyecto_cargado_avisos"] = avisos
+                    st.rerun()

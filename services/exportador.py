@@ -50,6 +50,8 @@ def _resumen_texto(
     lineas = [
         f"Proyecto: {proyecto.nombre}",
         f"Canton del escenario: {proyecto.escenario.get('canton', 'sin definir')}",
+        f"Personeria / Regimen: {proyecto.escenario.get('tipo_personeria', 'persona_natural')} / "
+        f"{proyecto.escenario.get('regimen_tributario', 'general')}",
         f"Fecha de generacion: {date.today().isoformat()}",
         f"Actividades: {len(cpm['filas'])} "
         f"({sum(1 for f in cpm['filas'] if f['tipo'] == 'tramite')} tramites publicos)",
@@ -61,6 +63,7 @@ def _resumen_texto(
         f"Gastos administrativos ({costos['admin_pct']:.1f}%): USD {costos['administrativos']:,.2f}",
         f"Inversion privada: USD {costos['privada']:,.2f}",
         f"Tramites y tasas publicas: USD {costos['tramites']:,.2f}",
+        f"Base gravada IVA (excluye nomina y tasas): USD {costos.get('base_iva', 0.0):,.2f}",
         f"IVA: USD {costos['iva']:,.2f}",
         f"Total del proyecto: USD {costos['total']:,.2f}",
         "Las tasas cantonales se aplican segun el canton del escenario; los valores "
@@ -178,6 +181,7 @@ def exportar_excel(
         (f"Gastos administrativos ({costos['admin_pct']:.1f}%)", costos["administrativos"]),
         ("Subtotal inversion privada", costos["privada"]),
         ("Tramites y tasas", costos["tramites"]),
+        ("Base gravada IVA (sin nomina)", costos.get("base_iva", 0.0)),
         ("IVA", costos["iva"]),
         ("TOTAL", costos["total"]),
     ):
@@ -567,6 +571,7 @@ def exportar_pdf(
         [f"Gastos administrativos ({costos['admin_pct']:.1f}%)", f"{costos['administrativos']:,.2f}"],
         ["Subtotal inversion privada", f"{costos['privada']:,.2f}"],
         ["Tramites y tasas publicas", f"{costos['tramites']:,.2f}"],
+        ["Base gravada IVA (excluye nomina)", f"{costos.get('base_iva', 0.0):,.2f}"],
         ["IVA", f"{costos['iva']:,.2f}"],
         ["TOTAL", f"{costos['total']:,.2f}"],
     ]

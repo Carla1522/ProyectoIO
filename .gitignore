@@ -27,6 +27,9 @@ dist/
 *.xlsx
 *.pdf
 *.csv
+!ejemplos/*.xlsx
+!ejemplos/*.pdf
+!ejemplos/*.csv
 *.log
 informes/
 
@@ -35,6 +38,7 @@ informes/
 Thumbs.db
 .vscode/
 .idea/
+~$*
 
 # Webapp (Node/Vite)
 node_modules/

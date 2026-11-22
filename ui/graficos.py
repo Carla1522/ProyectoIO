@@ -23,7 +23,6 @@ from core.modelo import Proyecto
 from ui.estilos import FUENTE, PALETA
 
 TOL = 1e-6
-SEPARACION_CARRIL = 0.9  # dias minimos entre nodos del mismo carril
 
 
 def _layout(figura: go.Figure, alto: int, **extra: Any) -> go.Figure:
